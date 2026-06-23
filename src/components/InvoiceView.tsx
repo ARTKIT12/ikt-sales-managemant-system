@@ -106,17 +106,28 @@ export default function InvoiceView({
     if (so) {
       setCustId(so.customer_id);
       
-      // Attempt to construct realistic items
-      setInvoiceItems([
-        {
-          item_no: 1,
-          description: `Service fee & project execution for "${so.project_name}"\nContract Ref: ${so.so_no}`,
-          quantity: 1,
-          unit_price: so.total_amount,
+      if (so.items && so.items.length > 0) {
+        setInvoiceItems(so.items.map(it => ({
+          item_no: it.item_no,
+          description: it.description,
+          quantity: it.remaining_qty,
+          unit_price: it.unit_price,
           tax_rate: 7,
-          amount: so.total_amount
-        }
-      ]);
+          amount: it.remaining_qty * it.unit_price
+        })));
+      } else {
+        // Attempt to construct realistic items
+        setInvoiceItems([
+          {
+            item_no: 1,
+            description: `Service fee & project execution for "${so.project_name}"\nContract Ref: ${so.so_no}`,
+            quantity: 1,
+            unit_price: so.total_amount,
+            tax_rate: 7,
+            amount: so.total_amount
+          }
+        ]);
+      }
     }
   };
 
@@ -238,6 +249,35 @@ export default function InvoiceView({
       return;
     }
 
+    // Validate remaining quantities if linked to Sales Order
+    let partialInvoiceMsg = '';
+    if (soId) {
+      const so = salesOrders.find(item => item.id === soId);
+      if (so && so.items && so.items.length > 0) {
+        for (const invItem of invoiceItems) {
+          const targetSOItem = so.items.find(si => si.item_no === invItem.item_no || si.description === invItem.description || si.description.includes(invItem.description) || invItem.description.includes(si.description));
+          if (targetSOItem) {
+            // Calculate max allowed
+            let maxAllowedQty = targetSOItem.remaining_qty;
+            if (editingInvoice) {
+              const previousMatchedItem = editingInvoice.items?.find(ei => ei.item_no === targetSOItem.item_no || ei.description === targetSOItem.description);
+              if (previousMatchedItem) {
+                maxAllowedQty += previousMatchedItem.quantity;
+              }
+            }
+            if (invItem.quantity > maxAllowedQty) {
+              onToast(`ไม่สามารถออก Invoice ได้เกินยอดคงเหลือ (ยอดคงเหลือ ${maxAllowedQty} ${targetSOItem.unit})`, 'err');
+              return;
+            }
+            const finalRem = maxAllowedQty - invItem.quantity;
+            if (finalRem > 0) {
+              partialInvoiceMsg = `สร้าง Invoice สำเร็จ ยอดคงเหลือ ${finalRem} ${targetSOItem.unit} สามารถออก Invoice ส่วนที่เหลือได้ในภายหลัง`;
+            }
+          }
+        }
+      }
+    }
+
     const { total_amount, vat_amount, grand_total } = calculatedFormTotals;
 
     // Attach local unique IDs to form items to match backend InvoiceItem schema
@@ -263,10 +303,10 @@ export default function InvoiceView({
     try {
       if (editingInvoice) {
         await onUpdate(editingInvoice.id, payload);
-        onToast(`ประสานแก้ไขข้อมูลในใบแจ้งหนี้แบบสรุป (${editingInvoice.invoice_no}) เรียบร้อย`, 'success');
+        onToast(partialInvoiceMsg || `ประสานแก้ไขข้อมูลในใบแจ้งหนี้แบบสรุป (${editingInvoice.invoice_no}) เรียบร้อย`, 'success');
       } else {
         await onAdd(payload);
-        onToast(`ออกใบแจ้งหนี้ต้นฉบับระบบและบันทึกค้างกองทุนสำเร็จ`, 'success');
+        onToast(partialInvoiceMsg || `ออกใบแจ้งหนี้ต้นฉบับระบบและบันทึกค้างกองทุนสำเร็จ`, 'success');
       }
       setIsFormOpen(false);
     } catch {

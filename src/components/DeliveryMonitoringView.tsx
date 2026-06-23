@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Customer, SalesOrder, Project, ProjectStatus, UserRole } from '../types';
 import { 
   ClipboardList, Search, Filter, Plus, Clock, Activity, Flag, Truck, FileText, CheckCircle2,
-  XCircle, Clock8, PlayCircle, Eye, Columns, BarChart4, ChevronRight, X, AlertTriangle
+  XCircle, Clock8, PlayCircle, Eye, Columns, BarChart4, ChevronRight, X, AlertTriangle,
+  Building2, Target
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 

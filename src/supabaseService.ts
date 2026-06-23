@@ -1,4 +1,22 @@
-import { Customer, Opportunity, ContactPerson, OpportunityStatus, Activity, OpportunityTask, OpportunityAttachment, AuditLog, Quotation, SalesOrder, DeliveryJob, Invoice, Receipt } from './types';
+import { Customer, Opportunity, ContactPerson, OpportunityStatus, Activity, OpportunityTask, OpportunityAttachment, AuditLog, Quotation, SalesOrder, DeliveryJob, Invoice, Receipt, Project } from './types';
+
+export function ensureUUID(id: string): string {
+  if (!id) return id;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return id.toLowerCase();
+  }
+  let hex = '';
+  for (let i = 0; i < id.length; i++) {
+    hex += id.charCodeAt(i).toString(16);
+  }
+  hex = hex.toLowerCase();
+  if (hex.length < 12) {
+    hex = hex.padEnd(12, '0');
+  } else if (hex.length > 12) {
+    hex = hex.slice(0, 12);
+  }
+  return `00000000-0000-0000-0000-${hex}`;
+}
 
 export const getSupabaseConfig = () => {
   const customUrl = localStorage.getItem('crm_supabase_url');
@@ -1039,7 +1057,7 @@ const DEFAULT_PROJECTS: Project[] = [
 ];
 
 // Helper to query Supabase REST API
-async function apiFetch(endpoint: string, options: RequestInit = {}) {
+async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<any> {
   const config = getSupabaseConfig();
   const headers = {
     'apikey': config.key,
@@ -1055,7 +1073,53 @@ async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+    
+    // Self-healing / Auto-recovery logic:
+    // If we tried to insert/update but a column was missing in the live schema,
+    // parse the missing column name, strip it from the body, and retry!
+    if (options.body && typeof options.body === 'string') {
+      try {
+        const parsedError = JSON.parse(errorText);
+        const errMsg = parsedError.message || '';
+        // Look for PGRST204 column missing error message:
+        // e.g., "Could not find the 'internal_notes' column of 'opportunities' in the schema cache"
+        const columnMatch = /Could not find the '([^']+)' column/i.exec(errMsg);
+        if (columnMatch && columnMatch[1]) {
+          const badColumn = columnMatch[1];
+          console.warn(`[Self-Healing] Column '${badColumn}' is missing on Supabase. Stripping and retrying...`);
+          
+          const payload = JSON.parse(options.body);
+          if (payload && typeof payload === 'object') {
+            delete payload[badColumn];
+            const updatedOptions = {
+              ...options,
+              body: JSON.stringify(payload)
+            };
+            return await apiFetch(endpoint, updatedOptions);
+          }
+        }
+      } catch (e) {
+        // Fallback: If error isn't JSON or regex didn't match nested message, check errorText rawly
+        const columnMatch = /Could not find the '([^']+)' column/i.exec(errorText);
+        if (columnMatch && columnMatch[1] && options.body && typeof options.body === 'string') {
+          const badColumn = columnMatch[1];
+          console.warn(`[Self-Healing] Column '${badColumn}' is missing on Supabase (Text Match). Stripping and retrying...`);
+          try {
+            const payload = JSON.parse(options.body);
+            if (payload && typeof payload === 'object') {
+              delete payload[badColumn];
+              const updatedOptions = {
+                ...options,
+                body: JSON.stringify(payload)
+              };
+              return await apiFetch(endpoint, updatedOptions);
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    throw new Error(`API Error ${response.ok ? response.status : 'Supabase Error (' + response.status + '): ' + errorText}`);
   }
 
   // Handle No Content (204)
@@ -1083,245 +1147,537 @@ class LocalDB {
   static getCustomers(): Customer[] {
     const data = localStorage.getItem('crm_customers');
     if (!data) {
-      localStorage.setItem('crm_customers', JSON.stringify(DEFAULT_CUSTOMERS));
-      return DEFAULT_CUSTOMERS;
+      const mapped = DEFAULT_CUSTOMERS.map(c => ({
+        ...c,
+        id: ensureUUID(c.id),
+        contacts: c.contacts?.map(contact => ({ ...contact })) || []
+      }));
+      localStorage.setItem('crm_customers', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(c => c.id === 'c_stpi')) {
-        localStorage.setItem('crm_customers', JSON.stringify(DEFAULT_CUSTOMERS));
-        return DEFAULT_CUSTOMERS;
+      if (!Array.isArray(parsed) || !parsed.some(c => c.id === ensureUUID('c_stpi'))) {
+        const mapped = DEFAULT_CUSTOMERS.map(c => ({
+          ...c,
+          id: ensureUUID(c.id),
+          contacts: c.contacts?.map(contact => ({ ...contact })) || []
+        }));
+        localStorage.setItem('crm_customers', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((c: any) => ({
+        ...c,
+        id: ensureUUID(c.id),
+        contacts: c.contacts?.map((contact: any) => ({ ...contact })) || []
+      }));
     } catch {
-      return DEFAULT_CUSTOMERS;
+      const mapped = DEFAULT_CUSTOMERS.map(c => ({
+        ...c,
+        id: ensureUUID(c.id),
+        contacts: c.contacts?.map(contact => ({ ...contact })) || []
+      }));
+      return mapped;
     }
   }
 
   static saveCustomers(customers: Customer[]) {
-    localStorage.setItem('crm_customers', JSON.stringify(customers));
+    const mapped = customers.map(c => ({
+      ...c,
+      id: ensureUUID(c.id),
+      contacts: c.contacts?.map(contact => ({ ...contact })) || []
+    }));
+    localStorage.setItem('crm_customers', JSON.stringify(mapped));
   }
 
   static getOpportunities(): Opportunity[] {
     const data = localStorage.getItem('crm_opportunities');
     if (!data) {
-      localStorage.setItem('crm_opportunities', JSON.stringify(DEFAULT_OPPORTUNITIES));
-      return DEFAULT_OPPORTUNITIES;
+      const mapped = DEFAULT_OPPORTUNITIES.map(o => ({
+        ...o,
+        id: ensureUUID(o.id),
+        customer_id: ensureUUID(o.customer_id)
+      }));
+      localStorage.setItem('crm_opportunities', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(o => o.id === 'o_qt3000')) {
-        localStorage.setItem('crm_opportunities', JSON.stringify(DEFAULT_OPPORTUNITIES));
-        return DEFAULT_OPPORTUNITIES;
+      if (!Array.isArray(parsed) || !parsed.some(o => o.id === ensureUUID('o_qt3000'))) {
+        const mapped = DEFAULT_OPPORTUNITIES.map(o => ({
+          ...o,
+          id: ensureUUID(o.id),
+          customer_id: ensureUUID(o.customer_id)
+        }));
+        localStorage.setItem('crm_opportunities', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((o: any) => ({
+        ...o,
+        id: ensureUUID(o.id),
+        customer_id: ensureUUID(o.customer_id)
+      }));
     } catch {
-      return DEFAULT_OPPORTUNITIES;
+      const mapped = DEFAULT_OPPORTUNITIES.map(o => ({
+        ...o,
+        id: ensureUUID(o.id),
+        customer_id: ensureUUID(o.customer_id)
+      }));
+      return mapped;
     }
   }
 
   static saveOpportunities(opportunities: Opportunity[]) {
-    localStorage.setItem('crm_opportunities', JSON.stringify(opportunities));
+    const mapped = opportunities.map(o => ({
+      ...o,
+      id: ensureUUID(o.id),
+      customer_id: ensureUUID(o.customer_id)
+    }));
+    localStorage.setItem('crm_opportunities', JSON.stringify(mapped));
   }
 
   static getActivities(): Activity[] {
     const data = localStorage.getItem('crm_activities');
     if (!data) {
-      localStorage.setItem('crm_activities', JSON.stringify(DEFAULT_ACTIVITIES));
-      return DEFAULT_ACTIVITIES;
+      const mapped = DEFAULT_ACTIVITIES.map(a => ({
+        ...a,
+        id: ensureUUID(a.id),
+        opportunity_id: ensureUUID(a.opportunity_id)
+      }));
+      localStorage.setItem('crm_activities', JSON.stringify(mapped));
+      return mapped;
     }
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return parsed.map((a: any) => ({
+        ...a,
+        id: ensureUUID(a.id),
+        opportunity_id: ensureUUID(a.opportunity_id)
+      }));
     } catch {
-      return DEFAULT_ACTIVITIES;
+      const mapped = DEFAULT_ACTIVITIES.map(a => ({
+        ...a,
+        id: ensureUUID(a.id),
+        opportunity_id: ensureUUID(a.opportunity_id)
+      }));
+      return mapped;
     }
   }
 
   static saveActivities(activities: Activity[]) {
-    localStorage.setItem('crm_activities', JSON.stringify(activities));
+    const mapped = activities.map(a => ({
+      ...a,
+      id: ensureUUID(a.id),
+      opportunity_id: ensureUUID(a.opportunity_id)
+    }));
+    localStorage.setItem('crm_activities', JSON.stringify(mapped));
   }
 
   static getTasks(): OpportunityTask[] {
     const data = localStorage.getItem('crm_tasks');
     if (!data) {
-      localStorage.setItem('crm_tasks', JSON.stringify(DEFAULT_TASKS));
-      return DEFAULT_TASKS;
+      const mapped = DEFAULT_TASKS.map(t => ({
+        ...t,
+        id: ensureUUID(t.id),
+        opportunity_id: ensureUUID(t.opportunity_id)
+      }));
+      localStorage.setItem('crm_tasks', JSON.stringify(mapped));
+      return mapped;
     }
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return parsed.map((t: any) => ({
+        ...t,
+        id: ensureUUID(t.id),
+        opportunity_id: ensureUUID(t.opportunity_id)
+      }));
     } catch {
-      return DEFAULT_TASKS;
+      const mapped = DEFAULT_TASKS.map(t => ({
+        ...t,
+        id: ensureUUID(t.id),
+        opportunity_id: ensureUUID(t.opportunity_id)
+      }));
+      return mapped;
     }
   }
 
   static saveTasks(tasks: OpportunityTask[]) {
-    localStorage.setItem('crm_tasks', JSON.stringify(tasks));
+    const mapped = tasks.map(t => ({
+      ...t,
+      id: ensureUUID(t.id),
+      opportunity_id: ensureUUID(t.opportunity_id)
+    }));
+    localStorage.setItem('crm_tasks', JSON.stringify(mapped));
   }
 
   static getAttachments(): OpportunityAttachment[] {
     const data = localStorage.getItem('crm_attachments');
     if (!data) {
-      localStorage.setItem('crm_attachments', JSON.stringify(DEFAULT_ATTACHMENTS));
-      return DEFAULT_ATTACHMENTS;
+      const mapped = DEFAULT_ATTACHMENTS.map(at => ({
+        ...at,
+        id: ensureUUID(at.id),
+        opportunity_id: ensureUUID(at.opportunity_id)
+      }));
+      localStorage.setItem('crm_attachments', JSON.stringify(mapped));
+      return mapped;
     }
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return parsed.map((at: any) => ({
+        ...at,
+        id: ensureUUID(at.id),
+        opportunity_id: ensureUUID(at.opportunity_id)
+      }));
     } catch {
-      return DEFAULT_ATTACHMENTS;
+       const mapped = DEFAULT_ATTACHMENTS.map(at => ({
+        ...at,
+        id: ensureUUID(at.id),
+        opportunity_id: ensureUUID(at.opportunity_id)
+      }));
+      return mapped;
     }
   }
 
   static saveAttachments(attachments: OpportunityAttachment[]) {
-    localStorage.setItem('crm_attachments', JSON.stringify(attachments));
+    const mapped = attachments.map(at => ({
+      ...at,
+      id: ensureUUID(at.id),
+      opportunity_id: ensureUUID(at.opportunity_id)
+    }));
+    localStorage.setItem('crm_attachments', JSON.stringify(mapped));
   }
 
   static getAuditLogs(): AuditLog[] {
     const data = localStorage.getItem('crm_audit_logs');
     if (!data) {
-      localStorage.setItem('crm_audit_logs', JSON.stringify(DEFAULT_AUDIT_LOGS));
-      return DEFAULT_AUDIT_LOGS;
+      const mapped = DEFAULT_AUDIT_LOGS.map(l => ({
+        ...l,
+        id: ensureUUID(l.id),
+        target_id: l.target_id ? ensureUUID(l.target_id) : undefined
+      }));
+      localStorage.setItem('crm_audit_logs', JSON.stringify(mapped));
+      return mapped;
     }
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return parsed.map((l: any) => ({
+        ...l,
+        id: ensureUUID(l.id),
+        target_id: l.target_id ? ensureUUID(l.target_id) : undefined
+      }));
     } catch {
-      return DEFAULT_AUDIT_LOGS;
+      const mapped = DEFAULT_AUDIT_LOGS.map(l => ({
+        ...l,
+        id: ensureUUID(l.id),
+        target_id: l.target_id ? ensureUUID(l.target_id) : undefined
+      }));
+      return mapped;
     }
   }
 
   static saveAuditLogs(logs: AuditLog[]) {
-    localStorage.setItem('crm_audit_logs', JSON.stringify(logs));
+    const mapped = logs.map(l => ({
+      ...l,
+      id: ensureUUID(l.id),
+      target_id: l.target_id ? ensureUUID(l.target_id) : undefined
+    }));
+    localStorage.setItem('crm_audit_logs', JSON.stringify(mapped));
   }
 
   static getQuotations(): Quotation[] {
     const data = localStorage.getItem('crm_quotations');
     if (!data) {
-      localStorage.setItem('crm_quotations', JSON.stringify(DEFAULT_QUOTATIONS));
-      return DEFAULT_QUOTATIONS;
+      const mapped = DEFAULT_QUOTATIONS.map(q => ({
+        ...q,
+        id: ensureUUID(q.id),
+        opportunity_id: ensureUUID(q.opportunity_id),
+        customer_id: ensureUUID(q.customer_id)
+      }));
+      localStorage.setItem('crm_quotations', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(q => q.id === 'qt3000')) {
-        localStorage.setItem('crm_quotations', JSON.stringify(DEFAULT_QUOTATIONS));
-        return DEFAULT_QUOTATIONS;
+      if (!Array.isArray(parsed) || !parsed.some(q => q.id === ensureUUID('qt3000'))) {
+        const mapped = DEFAULT_QUOTATIONS.map(q => ({
+          ...q,
+          id: ensureUUID(q.id),
+          opportunity_id: ensureUUID(q.opportunity_id),
+          customer_id: ensureUUID(q.customer_id)
+        }));
+        localStorage.setItem('crm_quotations', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((q: any) => ({
+        ...q,
+        id: ensureUUID(q.id),
+        opportunity_id: ensureUUID(q.opportunity_id),
+        customer_id: ensureUUID(q.customer_id)
+      }));
     } catch {
-      return DEFAULT_QUOTATIONS;
+      const mapped = DEFAULT_QUOTATIONS.map(q => ({
+        ...q,
+        id: ensureUUID(q.id),
+        opportunity_id: ensureUUID(q.opportunity_id),
+        customer_id: ensureUUID(q.customer_id)
+      }));
+      return mapped;
     }
   }
 
   static saveQuotations(quotations: Quotation[]) {
-    localStorage.setItem('crm_quotations', JSON.stringify(quotations));
+    const mapped = quotations.map(q => ({
+      ...q,
+      id: ensureUUID(q.id),
+      opportunity_id: ensureUUID(q.opportunity_id),
+      customer_id: ensureUUID(q.customer_id)
+    }));
+    localStorage.setItem('crm_quotations', JSON.stringify(mapped));
   }
 
   static getSalesOrders(): SalesOrder[] {
     const data = localStorage.getItem('crm_sales_orders');
     if (!data) {
-      localStorage.setItem('crm_sales_orders', JSON.stringify(DEFAULT_SALES_ORDERS));
-      return DEFAULT_SALES_ORDERS;
+      const mapped = DEFAULT_SALES_ORDERS.map(s => ({
+        ...s,
+        id: ensureUUID(s.id),
+        customer_id: ensureUUID(s.customer_id),
+        quotation_id: s.quotation_id ? ensureUUID(s.quotation_id) : undefined
+      }));
+      localStorage.setItem('crm_sales_orders', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(s => s.id === 'so_qt3000')) {
-        localStorage.setItem('crm_sales_orders', JSON.stringify(DEFAULT_SALES_ORDERS));
-        return DEFAULT_SALES_ORDERS;
+      if (!Array.isArray(parsed) || !parsed.some(s => s.id === ensureUUID('so_qt3000'))) {
+        const mapped = DEFAULT_SALES_ORDERS.map(s => ({
+          ...s,
+          id: ensureUUID(s.id),
+          customer_id: ensureUUID(s.customer_id),
+          quotation_id: s.quotation_id ? ensureUUID(s.quotation_id) : undefined
+        }));
+        localStorage.setItem('crm_sales_orders', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((s: any) => ({
+        ...s,
+        id: ensureUUID(s.id),
+        customer_id: ensureUUID(s.customer_id),
+        quotation_id: s.quotation_id ? ensureUUID(s.quotation_id) : undefined
+      }));
     } catch {
-      return DEFAULT_SALES_ORDERS;
+      const mapped = DEFAULT_SALES_ORDERS.map(s => ({
+        ...s,
+        id: ensureUUID(s.id),
+        customer_id: ensureUUID(s.customer_id),
+        quotation_id: s.quotation_id ? ensureUUID(s.quotation_id) : undefined
+      }));
+      return mapped;
     }
   }
 
   static saveSalesOrders(salesOrders: SalesOrder[]) {
-    localStorage.setItem('crm_sales_orders', JSON.stringify(salesOrders));
+    const mapped = salesOrders.map(s => ({
+      ...s,
+      id: ensureUUID(s.id),
+      customer_id: ensureUUID(s.customer_id),
+      quotation_id: s.quotation_id ? ensureUUID(s.quotation_id) : undefined
+    }));
+    localStorage.setItem('crm_sales_orders', JSON.stringify(mapped));
   }
 
   static getDeliveryJobs(): DeliveryJob[] {
     const data = localStorage.getItem('crm_delivery_jobs');
     if (!data) {
-      localStorage.setItem('crm_delivery_jobs', JSON.stringify(DEFAULT_DELIVERY_JOBS));
-      return DEFAULT_DELIVERY_JOBS;
+      const mapped = DEFAULT_DELIVERY_JOBS.map(d => ({
+        ...d,
+        id: ensureUUID(d.id),
+        sales_order_id: ensureUUID(d.sales_order_id)
+      }));
+      localStorage.setItem('crm_delivery_jobs', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(d => d.id === 'dl_qt3000')) {
-        localStorage.setItem('crm_delivery_jobs', JSON.stringify(DEFAULT_DELIVERY_JOBS));
-        return DEFAULT_DELIVERY_JOBS;
+      if (!Array.isArray(parsed) || !parsed.some(d => d.id === ensureUUID('dl_qt3000'))) {
+        const mapped = DEFAULT_DELIVERY_JOBS.map(d => ({
+          ...d,
+          id: ensureUUID(d.id),
+          sales_order_id: ensureUUID(d.sales_order_id)
+        }));
+        localStorage.setItem('crm_delivery_jobs', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((d: any) => ({
+        ...d,
+        id: ensureUUID(d.id),
+        sales_order_id: ensureUUID(d.sales_order_id)
+      }));
     } catch {
-      return DEFAULT_DELIVERY_JOBS;
+      const mapped = DEFAULT_DELIVERY_JOBS.map(d => ({
+        ...d,
+        id: ensureUUID(d.id),
+        sales_order_id: ensureUUID(d.sales_order_id)
+      }));
+      return mapped;
     }
   }
 
   static saveDeliveryJobs(jobs: DeliveryJob[]) {
-    localStorage.setItem('crm_delivery_jobs', JSON.stringify(jobs));
+    const mapped = jobs.map(d => ({
+      ...d,
+      id: ensureUUID(d.id),
+      sales_order_id: ensureUUID(d.sales_order_id)
+    }));
+    localStorage.setItem('crm_delivery_jobs', JSON.stringify(mapped));
   }
 
   static getInvoices(): Invoice[] {
     const data = localStorage.getItem('crm_invoices');
     if (!data) {
-      localStorage.setItem('crm_invoices', JSON.stringify(DEFAULT_INVOICES));
-      return DEFAULT_INVOICES;
+      const mapped = DEFAULT_INVOICES.map(i => ({
+        ...i,
+        id: ensureUUID(i.id),
+        customer_id: ensureUUID(i.customer_id),
+        sales_order_id: ensureUUID(i.sales_order_id)
+      }));
+      localStorage.setItem('crm_invoices', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(i => i.id === 'inv_demo')) {
-        localStorage.setItem('crm_invoices', JSON.stringify(DEFAULT_INVOICES));
-        return DEFAULT_INVOICES;
+      if (!Array.isArray(parsed) || !parsed.some(i => i.id === ensureUUID('inv_demo'))) {
+        const mapped = DEFAULT_INVOICES.map(i => ({
+          ...i,
+          id: ensureUUID(i.id),
+          customer_id: ensureUUID(i.customer_id),
+          sales_order_id: ensureUUID(i.sales_order_id)
+        }));
+        localStorage.setItem('crm_invoices', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((i: any) => ({
+        ...i,
+        id: ensureUUID(i.id),
+        customer_id: ensureUUID(i.customer_id),
+        sales_order_id: ensureUUID(i.sales_order_id)
+      }));
     } catch {
-      return DEFAULT_INVOICES;
+      const mapped = DEFAULT_INVOICES.map(i => ({
+        ...i,
+        id: ensureUUID(i.id),
+        customer_id: ensureUUID(i.customer_id),
+        sales_order_id: ensureUUID(i.sales_order_id)
+      }));
+      return mapped;
     }
   }
 
   static saveInvoices(invoices: Invoice[]) {
-    localStorage.setItem('crm_invoices', JSON.stringify(invoices));
+    const mapped = invoices.map(i => ({
+      ...i,
+      id: ensureUUID(i.id),
+      customer_id: ensureUUID(i.customer_id),
+      sales_order_id: ensureUUID(i.sales_order_id)
+    }));
+    localStorage.setItem('crm_invoices', JSON.stringify(mapped));
   }
 
   static getReceipts(): Receipt[] {
     const data = localStorage.getItem('crm_receipts');
     if (!data) {
-      localStorage.setItem('crm_receipts', JSON.stringify(DEFAULT_RECEIPTS));
-      return DEFAULT_RECEIPTS;
+      const mapped = DEFAULT_RECEIPTS.map(r => ({
+        ...r,
+        id: ensureUUID(r.id),
+        customer_id: ensureUUID(r.customer_id),
+        invoice_id: ensureUUID(r.invoice_id)
+      }));
+      localStorage.setItem('crm_receipts', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(r => r.id === 'rc_3018')) {
-        localStorage.setItem('crm_receipts', JSON.stringify(DEFAULT_RECEIPTS));
-        return DEFAULT_RECEIPTS;
+      if (!Array.isArray(parsed) || !parsed.some(r => r.id === ensureUUID('rc_3018'))) {
+        const mapped = DEFAULT_RECEIPTS.map(r => ({
+          ...r,
+          id: ensureUUID(r.id),
+          customer_id: ensureUUID(r.customer_id),
+          invoice_id: ensureUUID(r.invoice_id)
+        }));
+        localStorage.setItem('crm_receipts', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((r: any) => ({
+        ...r,
+        id: ensureUUID(r.id),
+        customer_id: ensureUUID(r.customer_id),
+        invoice_id: ensureUUID(r.invoice_id)
+      }));
     } catch {
-      return DEFAULT_RECEIPTS;
+      const mapped = DEFAULT_RECEIPTS.map(r => ({
+        ...r,
+        id: ensureUUID(r.id),
+        customer_id: ensureUUID(r.customer_id),
+        invoice_id: ensureUUID(r.invoice_id)
+      }));
+      return mapped;
     }
   }
 
   static saveReceipts(receipts: Receipt[]) {
-    localStorage.setItem('crm_receipts', JSON.stringify(receipts));
+    const mapped = receipts.map(r => ({
+      ...r,
+      id: ensureUUID(r.id),
+      customer_id: ensureUUID(r.customer_id),
+      invoice_id: ensureUUID(r.invoice_id)
+    }));
+    localStorage.setItem('crm_receipts', JSON.stringify(mapped));
   }
 
   static getProjects(): Project[] {
     const data = localStorage.getItem('crm_projects');
     if (!data) {
-      localStorage.setItem('crm_projects', JSON.stringify(DEFAULT_PROJECTS));
-      return DEFAULT_PROJECTS;
+      const mapped = DEFAULT_PROJECTS.map(p => ({
+        ...p,
+        id: ensureUUID(p.id),
+        sales_order_id: ensureUUID(p.sales_order_id)
+      }));
+      localStorage.setItem('crm_projects', JSON.stringify(mapped));
+      return mapped;
     }
     try {
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || !parsed.some(p => p.id === 'proj_qt3000')) {
-        localStorage.setItem('crm_projects', JSON.stringify(DEFAULT_PROJECTS));
-        return DEFAULT_PROJECTS;
+      if (!Array.isArray(parsed) || !parsed.some(p => p.id === ensureUUID('proj_qt3000'))) {
+        const mapped = DEFAULT_PROJECTS.map(p => ({
+          ...p,
+          id: ensureUUID(p.id),
+          sales_order_id: ensureUUID(p.sales_order_id)
+        }));
+        localStorage.setItem('crm_projects', JSON.stringify(mapped));
+        return mapped;
       }
-      return parsed;
+      return parsed.map((p: any) => ({
+        ...p,
+        id: ensureUUID(p.id),
+        sales_order_id: ensureUUID(p.sales_order_id)
+      }));
     } catch {
-      return DEFAULT_PROJECTS;
+      const mapped = DEFAULT_PROJECTS.map(p => ({
+        ...p,
+        id: ensureUUID(p.id),
+        sales_order_id: ensureUUID(p.sales_order_id)
+      }));
+      return mapped;
     }
   }
 
   static saveProjects(projects: Project[]) {
-    localStorage.setItem('crm_projects', JSON.stringify(projects));
+    const mapped = projects.map(p => ({
+      ...p,
+      id: ensureUUID(p.id),
+      sales_order_id: ensureUUID(p.sales_order_id)
+    }));
+    localStorage.setItem('crm_projects', JSON.stringify(mapped));
   }
 }
 
@@ -2006,7 +2362,7 @@ export const CRMService = {
       try {
         const raw = await apiFetch('/quotations?order=quotation_no.desc');
         const custs = await this.fetchCustomers();
-        const custMap = new Map(custs.map(c => [c.id, c]));
+        const custMap = new Map<string, any>(custs.map(c => [c.id, c]));
         
         const parsed = (raw as any[]).map(q => ({
           ...q,
@@ -2119,13 +2475,103 @@ export const CRMService = {
   // SALES ORDER SERVICES (Module 5)
   // -------------------------------------------------------------
   async fetchSalesOrders(): Promise<SalesOrder[]> {
-    const list = LocalDB.getSalesOrders();
+    const isCloud = await this.checkCloudConnection();
+    let list: SalesOrder[] = [];
+    if (isCloud && getConnectivityMode()) {
+      try {
+        const raw = await apiFetch('/sales_orders?order=so_no.desc');
+        list = raw as SalesOrder[];
+        LocalDB.saveSalesOrders(list);
+      } catch (err) {
+        console.warn('Failed cloud fetch sales orders, using fallback', err);
+        list = LocalDB.getSalesOrders();
+      }
+    } else {
+      list = LocalDB.getSalesOrders();
+    }
+
     const custs = await this.fetchCustomers();
+    const quotations = LocalDB.getQuotations();
+    const invoices = LocalDB.getInvoices();
+
     return list.map(s => {
       const c = custs.find(curr => curr.id === s.customer_id);
+      
+      // Load and compute items
+      let finalItems = s.items;
+      const q = quotations.find(quote => quote.id === s.quotation_id || quote.quotation_no === s.quotation_id);
+      
+      // If items don't exist, we load from quotation
+      const baseItems = q?.items || [];
+      const computedItems = baseItems.map(it => {
+        const relatedInvoices = invoices.filter(inv => inv.sales_order_id === s.id);
+        let totalInvoicedQty = 0;
+        relatedInvoices.forEach(inv => {
+          inv.items?.forEach(invItem => {
+            if (invItem.item_no === it.item_no || 
+                invItem.description === it.description || 
+                invItem.description.includes(it.description) || 
+                it.description.includes(invItem.description)) {
+              totalInvoicedQty += invItem.quantity;
+            }
+          });
+        });
+
+        return {
+          item_no: it.item_no,
+          description: it.description,
+          qty: it.qty,
+          remaining_qty: Math.max(0, it.qty - totalInvoicedQty),
+          unit: it.unit,
+          unit_price: it.unit_rate
+        };
+      });
+
+      if (!finalItems || finalItems.length === 0) {
+        finalItems = computedItems;
+      } else {
+        // Double sync remaining_qty just in case
+        finalItems = finalItems.map(it => {
+          const relatedInvoices = invoices.filter(inv => inv.sales_order_id === s.id);
+          let totalInvoicedQty = 0;
+          relatedInvoices.forEach(inv => {
+            inv.items?.forEach(invItem => {
+              if (invItem.item_no === it.item_no || 
+                  invItem.description === it.description || 
+                  invItem.description.includes(it.description) || 
+                  it.description.includes(invItem.description)) {
+                totalInvoicedQty += invItem.quantity;
+              }
+            });
+          });
+          return {
+            ...it,
+            remaining_qty: Math.max(0, it.qty - totalInvoicedQty)
+          };
+        });
+      }
+
+      // Compute Status
+      let currentStatus = s.status;
+      if (s.status !== 'Cancelled') {
+        const totalOrig = finalItems.reduce((acc, it) => acc + it.qty, 0);
+        const totalRem = finalItems.reduce((acc, it) => acc + it.remaining_qty, 0);
+        if (totalOrig > 0) {
+          if (totalRem === 0) {
+            currentStatus = 'Fully Invoiced';
+          } else if (totalRem < totalOrig) {
+            currentStatus = 'Partially Invoiced';
+          } else {
+            currentStatus = 'In Progress';
+          }
+        }
+      }
+
       return {
         ...s,
-        customer_name: c ? c.customer_name : 'ไม่พบข้อมูลลูกค้า'
+        status: currentStatus as any,
+        customer_name: c ? c.customer_name : 'ไม่พบข้อมูลลูกค้า',
+        items: finalItems
       };
     }).sort((a, b) => b.so_no.localeCompare(a.so_no));
   },
@@ -2146,15 +2592,49 @@ export const CRMService = {
     const nextCode = `SO-${currentYearShort}${String(nextSeq).padStart(4, '0')}`;
     const newId = crypto.randomUUID();
 
+    // Try to load items from Linked Quotation
+    let finalItems = soPayload.items;
+    if (!finalItems || finalItems.length === 0) {
+      const quotations = LocalDB.getQuotations();
+      const q = quotations.find(quote => quote.id === soPayload.quotation_id || quote.quotation_no === soPayload.quotation_id);
+      const baseItems = q?.items || [];
+      finalItems = baseItems.map(it => ({
+        item_no: it.item_no,
+        description: it.description,
+        qty: it.qty,
+        remaining_qty: it.qty,
+        unit: it.unit,
+        unit_price: it.unit_rate
+      }));
+    }
+
     const prepared: SalesOrder = {
       ...soPayload,
       id: newId,
       so_no: nextCode,
+      items: finalItems,
       created_at: new Date().toISOString()
     };
 
     const latest = [prepared, ...list];
     LocalDB.saveSalesOrders(latest);
+
+    const isCloud = await this.checkCloudConnection();
+    if (isCloud && getConnectivityMode()) {
+      try {
+        const payload = { ...prepared };
+        delete (payload as any).customer_name;
+        // Make sure quotation_id is UUID or null
+        if (payload.quotation_id) {
+          payload.quotation_id = ensureUUID(payload.quotation_id);
+        }
+        payload.customer_id = ensureUUID(payload.customer_id);
+        await apiFetch('/sales_orders', { method: 'POST', body: JSON.stringify(payload) });
+      } catch (err: any) {
+        console.warn('Cloud insertSalesOrder failed', err);
+        throw new Error(err.message || 'Supabase Connection Timeout');
+      }
+    }
     return prepared;
   },
 
@@ -2169,12 +2649,40 @@ export const CRMService = {
     LocalDB.saveSalesOrders(updated);
     const found = updated.find(s => s.id === id);
     if (!found) throw new Error('Sales Order not found');
+
+    const isCloud = await this.checkCloudConnection();
+    if (isCloud && getConnectivityMode()) {
+      try {
+        const payload = { ...updates };
+        delete (payload as any).customer_name;
+        if (payload.quotation_id) {
+          payload.quotation_id = ensureUUID(payload.quotation_id);
+        }
+        if (payload.customer_id) {
+          payload.customer_id = ensureUUID(payload.customer_id);
+        }
+        await apiFetch(`/sales_orders?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+      } catch (err: any) {
+        console.warn('Cloud updateSalesOrder failed', err);
+        throw new Error(err.message || 'Supabase Connection Timeout');
+      }
+    }
     return found;
   },
 
   async deleteSalesOrder(id: string): Promise<boolean> {
     const list = LocalDB.getSalesOrders();
     LocalDB.saveSalesOrders(list.filter(s => s.id !== id));
+
+    const isCloud = await this.checkCloudConnection();
+    if (isCloud && getConnectivityMode()) {
+      try {
+        await apiFetch(`/sales_orders?id=eq.${id}`, { method: 'DELETE' });
+      } catch (err: any) {
+        console.warn('Cloud deleteSalesOrder failed', err);
+        throw new Error(err.message || 'Supabase Connection Timeout');
+      }
+    }
     return true;
   },
 
@@ -2284,6 +2792,12 @@ export const CRMService = {
 
     const latest = [prepared, ...list];
     LocalDB.saveInvoices(latest);
+
+    // Sync Sales Order
+    if (prepared.sales_order_id) {
+      this.recomputeSalesOrderQuantitiesAndStatus(prepared.sales_order_id, latest);
+    }
+
     return prepared;
   },
 
@@ -2296,15 +2810,102 @@ export const CRMService = {
       return inv;
     });
     LocalDB.saveInvoices(updated);
+
     const found = updated.find(inv => inv.id === id);
     if (!found) throw new Error('Invoice not found');
+
+    // Sync Sales Order
+    if (found.sales_order_id) {
+      this.recomputeSalesOrderQuantitiesAndStatus(found.sales_order_id, updated);
+    }
+
     return found;
   },
 
   async deleteInvoice(id: string): Promise<boolean> {
     const list = LocalDB.getInvoices();
-    LocalDB.saveInvoices(list.filter(inv => inv.id !== id));
+    const targetInvoice = list.find(inv => inv.id === id);
+    const filtered = list.filter(inv => inv.id !== id);
+    LocalDB.saveInvoices(filtered);
+
+    // Sync Sales Order
+    if (targetInvoice && targetInvoice.sales_order_id) {
+      this.recomputeSalesOrderQuantitiesAndStatus(targetInvoice.sales_order_id, filtered);
+    }
+
     return true;
+  },
+
+  // Helper method to completely calculate and synchronize quantities dynamically
+  recomputeSalesOrderQuantitiesAndStatus(soId: string, allInvoices: Invoice[]) {
+    const sos = LocalDB.getSalesOrders();
+    const updatedSOs = sos.map(so => {
+      if (so.id === soId) {
+        // Initialize base items from Quotation if not set
+        let items = so.items;
+        if (!items) {
+          const quotations = LocalDB.getQuotations();
+          const q = quotations.find(quote => quote.id === so.quotation_id || quote.quotation_no === so.quotation_id);
+          const baseItems = q?.items || [];
+          items = baseItems.map(it => ({
+            item_no: it.item_no,
+            description: it.description,
+            qty: it.qty,
+            remaining_qty: it.qty,
+            unit: it.unit,
+            unit_price: it.unit_rate
+          }));
+        }
+
+        // Filter invoices belonging to this sales order
+        const relatedInvoices = allInvoices.filter(inv => inv.sales_order_id === soId);
+
+        // Reset and deduct from original qty
+        const updatedItems = items.map(it => {
+          let totalInvoicedQty = 0;
+          relatedInvoices.forEach(inv => {
+            inv.items?.forEach(invItem => {
+              if (invItem.item_no === it.item_no || 
+                  invItem.description === it.description || 
+                  invItem.description.includes(it.description) || 
+                  it.description.includes(invItem.description)) {
+                totalInvoicedQty += invItem.quantity;
+              }
+            });
+          });
+
+          return {
+            ...it,
+            remaining_qty: Math.max(0, it.qty - totalInvoicedQty)
+          };
+        });
+
+        // Compute Status
+        let currentStatus = so.status;
+        if (so.status !== 'Cancelled') {
+          const totalOrig = updatedItems.reduce((acc, it) => acc + it.qty, 0);
+          const totalRem = updatedItems.reduce((acc, it) => acc + it.remaining_qty, 0);
+          if (totalOrig > 0) {
+            if (totalRem === 0) {
+              currentStatus = 'Fully Invoiced';
+            } else if (totalRem < totalOrig) {
+              currentStatus = 'Partially Invoiced';
+            } else {
+              currentStatus = 'In Progress';
+            }
+          }
+        }
+
+        return {
+          ...so,
+          items: updatedItems,
+          status: currentStatus as any
+        };
+      }
+      return so;
+    });
+
+    LocalDB.saveSalesOrders(updatedSOs);
   },
 
   // -------------------------------------------------------------

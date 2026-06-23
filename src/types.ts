@@ -145,11 +145,21 @@ export interface SalesOrder {
   customer_id: string;
   project_name: string;
   total_amount: number;
-  status: 'Pending' | 'Planning' | 'In Progress' | 'Completed' | 'Cancelled';
+  status: 'Pending' | 'Planning' | 'In Progress' | 'Completed' | 'Cancelled' | 'Partially Invoiced' | 'Fully Invoiced';
   order_date: string;
   target_delivery_date: string;
   created_at: string;
   customer_name?: string;
+  job_no?: string;
+  po_no?: string;
+  items?: {
+    item_no: number;
+    description: string;
+    qty: number;
+    remaining_qty: number;
+    unit: string;
+    unit_price: number;
+  }[];
 }
 
 export type ProjectStatus = 'Pending' | 'Mobilizing' | 'On Going' | 'Completed' | 'Ready For Invoice' | 'On Hold' | 'Delayed' | 'Cancelled' | 'Closed';

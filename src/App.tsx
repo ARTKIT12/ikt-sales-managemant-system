@@ -973,6 +973,8 @@ export default function App() {
                 salesOrders={salesOrders}
                 quotations={quotations}
                 customers={customers}
+                opportunities={opportunities}
+                invoices={invoices}
                 onAdd={handleAddSalesOrder}
                 onUpdate={handleUpdateSalesOrder}
                 onDelete={handleDeleteSalesOrder}

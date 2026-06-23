@@ -27,7 +27,7 @@ export default function SetupView({ onToast, onConnectivityChange }: SetupViewPr
 
   // SQL Script loaded directly
   const sqlScript = `-- ==========================================
--- CRM Sales Management System - Phase 1 Schema
+-- CRM Sales Management System - Full Production Schema
 -- Copy and paste this script into your Supabase SQL Editor
 -- ==========================================
 
@@ -116,7 +116,63 @@ CREATE POLICY "Enable insert access for all users" ON public.opportunities FOR I
 CREATE POLICY "Enable update access for all users" ON public.opportunities FOR UPDATE USING (true);
 CREATE POLICY "Enable delete access for all users" ON public.opportunities FOR DELETE USING (true);
 
--- Ensure correct columns even if tables exist
+
+-- 4. Create QUOTATIONS Table
+CREATE TABLE IF NOT EXISTS public.quotations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quotation_no VARCHAR(50) UNIQUE NOT NULL,
+    opportunity_id UUID REFERENCES public.opportunities(id) ON DELETE SET NULL,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE CASCADE,
+    subject VARCHAR(255) NOT NULL,
+    total_amount NUMERIC(15, 2) DEFAULT 0.00,
+    vat_amount NUMERIC(15, 2) DEFAULT 0.00,
+    grand_total NUMERIC(15, 2) DEFAULT 0.00,
+    status VARCHAR(50) DEFAULT 'Draft',
+    issue_date DATE,
+    valid_until DATE,
+    remarks TEXT,
+    items JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Enable RLS for Quotations
+ALTER TABLE public.quotations ENABLE ROW LEVEL SECURITY;
+
+-- Create Policies for Quotations
+CREATE POLICY "Enable read access for all users" ON public.quotations FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON public.quotations FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON public.quotations FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON public.quotations FOR DELETE USING (true);
+
+
+-- 5. Create SALES_ORDERS Table
+CREATE TABLE IF NOT EXISTS public.sales_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    so_no VARCHAR(50) UNIQUE NOT NULL,
+    quotation_id UUID, -- References public.quotations(id) ON DELETE SET NULL - stored as general reference or UUID
+    customer_id UUID REFERENCES public.customers(id) ON DELETE CASCADE,
+    project_name VARCHAR(255) NOT NULL,
+    total_amount NUMERIC(15, 2) DEFAULT 0.00,
+    status VARCHAR(50) DEFAULT 'Pending',
+    order_date DATE,
+    target_delivery_date DATE,
+    job_no VARCHAR(100),
+    po_no VARCHAR(100),
+    items JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Enable RLS for Sales Orders
+ALTER TABLE public.sales_orders ENABLE ROW LEVEL SECURITY;
+
+-- Create Policies for Sales Orders
+CREATE POLICY "Enable read access for all users" ON public.sales_orders FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON public.sales_orders FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON public.sales_orders FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON public.sales_orders FOR DELETE USING (true);
+
+
+-- Ensure correct columns even if tables exist (Migration safety commands)
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS province VARCHAR(100);
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS country VARCHAR(100);
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS website VARCHAR(255);
@@ -126,7 +182,11 @@ ALTER TABLE public.customers DROP COLUMN IF EXISTS contacts;
 
 ALTER TABLE public.opportunities ADD COLUMN IF NOT EXISTS project_location VARCHAR(50) DEFAULT 'Other';
 ALTER TABLE public.opportunities ADD COLUMN IF NOT EXISTS weighted_value NUMERIC(15, 2) DEFAULT 0.00;
-ALTER TABLE public.opportunities ADD COLUMN IF NOT EXISTS internal_notes TEXT;`;
+ALTER TABLE public.opportunities ADD COLUMN IF NOT EXISTS internal_notes TEXT;
+
+ALTER TABLE public.sales_orders ADD COLUMN IF NOT EXISTS job_no VARCHAR(100);
+ALTER TABLE public.sales_orders ADD COLUMN IF NOT EXISTS po_no VARCHAR(100);
+ALTER TABLE public.sales_orders ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;`;
 
   // Check cloud connection on load
   const runConnectionCheck = async () => {
