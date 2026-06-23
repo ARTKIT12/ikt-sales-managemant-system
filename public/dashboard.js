@@ -445,8 +445,11 @@ function renderRecentTimeline(activities, customers, opportunities) {
     }
 
     const timeLoc = currentLang === 'EN' ? 'en-US' : 'th-TH';
-    const timestamp = new Date(act.created_at).toLocaleTimeString(timeLoc, { hour: '2-digit', minute: '2-digit' });
+    const dateObj = new Date(act.created_at);
+    const formattedDate = dateObj.toLocaleDateString(timeLoc, { day: 'numeric', month: 'short' });
+    const timestamp = dateObj.toLocaleTimeString(timeLoc, { hour: '2-digit', minute: '2-digit' });
     const timeSuffix = currentLang === 'EN' ? '' : ' น.';
+    const displayTime = `${formattedDate} ${timestamp}${timeSuffix}`;
     const actionLabel = act.action;
     
     html += `
@@ -454,8 +457,8 @@ function renderRecentTimeline(activities, customers, opportunities) {
         ${iconHTML}
         <div class="flex-grow-1" style="min-width: 0;">
           <div class="d-flex align-items-center justify-content-between mb-0.5">
-            <strong class="text-dark truncate fw-bold" style="font-size: 0.85rem; max-width: 75%;">${actionLabel}</strong>
-            <span class="text-muted font-monospace" style="font-size: 10px;">${timestamp}${timeSuffix}</span>
+            <strong class="text-dark truncate fw-bold" style="font-size: 0.85rem; max-width: 60%;">${actionLabel}</strong>
+            <span class="text-muted font-monospace text-nowrap" style="font-size: 10px;">${displayTime}</span>
           </div>
           <p class="text-muted small m-0 mb-1" style="font-size: 0.76rem; line-height: 1.35;">${act.details}</p>
           <div class="d-flex align-items-center gap-2">
