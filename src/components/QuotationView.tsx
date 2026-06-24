@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Opportunity, Quotation, UserRole } from '../types';
-import { FileText, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, Calendar, FileCheck, Check, Ban, Clock, X, Lock } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, Calendar, FileCheck, Check, Ban, Clock, X, Lock, Copy } from 'lucide-react';
 
 interface QuotationViewProps {
   quotations: Quotation[];
@@ -121,6 +121,37 @@ export default function QuotationView({
       setIsFormOpen(false);
     } catch {
       onToast('เกิดข้อผิดพลาดในการบันทึกข้อมูลใบเสนอราคา', 'err');
+    }
+  };
+
+  const handleDuplicateQuotation = async (q: Quotation) => {
+    if (!confirm(`คุณมั่นใจหรือไม่ที่จะทำสำเนาใบเสนอราคา ${q.quotation_no} เป็นฉบับร่างใหม่?`)) {
+      return;
+    }
+
+    const payload = {
+      opportunity_id: q.opportunity_id || '',
+      customer_id: q.customer_id,
+      subject: q.subject,
+      total_amount: q.total_amount,
+      vat_amount: q.vat_amount,
+      grand_total: q.grand_total,
+      status: 'Draft' as const,
+      issue_date: new Date().toISOString().split('T')[0],
+      valid_until: (() => {
+        const d = new Date();
+        d.setDate(d.getDate() + 30);
+        return d.toISOString().split('T')[0];
+      })(),
+      remarks: q.remarks || '',
+      items: q.items ? q.items.map(it => ({ ...it })) : []
+    };
+
+    try {
+      await onAdd(payload);
+      onToast(`คัดลอกใบเสนอราคา ${q.quotation_no} สำเร็จ (ฉบับร่าง)`, 'success');
+    } catch {
+      onToast('เกิดข้อผิดพลาดในการคัดลอกใบเสนอราคา', 'err');
     }
   };
 
@@ -284,13 +315,22 @@ export default function QuotationView({
                           <Eye className="w-3.5 h-3.5" />
                         </button>
                         {canModify && (
-                          <button
-                            onClick={() => handleOpenEditForm(q)}
-                            title="แก้ไขรายละเอียด"
-                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleOpenEditForm(q)}
+                              title="แก้ไขรายละเอียด"
+                              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDuplicateQuotation(q)}
+                              title="คัดลอกเป็นฉบับใหม่ (Duplicate)"
+                              className="p-1 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
                         {canDelete ? (
                           <button
@@ -526,6 +566,10 @@ export default function QuotationView({
                       <span className="text-slate-400 font-medium">Valid Until:</span>
                       <span className="font-bold text-amber-600">{viewingQuote.valid_until}</span>
                     </div>
+                  </div>
+                  <div className="text-left bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg mt-1 max-w-[240px] inline-block w-full">
+                    <span className="text-[9px] text-slate-400 block font-semibold uppercase tracking-wider">Subject / เรื่อง:</span>
+                    <span className="text-[11px] font-black text-slate-800 block break-words leading-tight mt-0.5">{viewingQuote.subject}</span>
                   </div>
                 </div>
               </div>

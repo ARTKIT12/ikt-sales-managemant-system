@@ -508,21 +508,26 @@ function renderRecentTimeline(activities, customers, opportunities) {
       if (opp) {
         const rawSalesPerson = opp.sales_person_id || opp.sales_person || "";
         
-        // 1. Try to find direct match in fullname
-        matchedUser = systemUsers.find(u => {
-          const fn = u.fullname.toLowerCase();
-          const rp = rawSalesPerson.toLowerCase();
-          return fn.includes(rp) || rp.includes(fn);
-        });
+        // 1. Try to find direct match by ID
+        matchedUser = systemUsers.find(u => u.id === rawSalesPerson);
 
-        // 2. Map default sales person names/codes to the new crm_users_list entries
+        // 2. Try to find direct match in fullname
+        if (!matchedUser) {
+          matchedUser = systemUsers.find(u => {
+            const fn = (u.fullname || u.name || "").toLowerCase();
+            const rp = rawSalesPerson.toLowerCase();
+            return fn.includes(rp) || rp.includes(fn);
+          });
+        }
+
+        // 3. Map default sales person names/codes to the new crm_users_list entries
         if (!matchedUser) {
           if (rawSalesPerson.includes("เอกชัย") || rawSalesPerson.includes("S01") || rawSalesPerson.includes("S1")) {
-            matchedUser = systemUsers.find(u => u.fullname.includes("วิริยะ") || u.role === "Sales Rep" || u.role.includes("Sales"));
+            matchedUser = systemUsers.find(u => (u.fullname || u.name || "").includes("วิริยะ") || u.role === "Sales Rep" || u.role.includes("Sales"));
           } else if (rawSalesPerson.includes("สุชาดา") || rawSalesPerson.includes("S02") || rawSalesPerson.includes("S2")) {
-            matchedUser = systemUsers.find(u => u.fullname.includes("พิมพ์ใจ") || u.role === "Sales Manager" || u.role.includes("Manager"));
+            matchedUser = systemUsers.find(u => (u.fullname || u.name || "").includes("พิมพ์ใจ") || u.role === "Sales Manager" || u.role.includes("Manager"));
           } else if (rawSalesPerson.includes("ธนพล") || rawSalesPerson.includes("S03") || rawSalesPerson.includes("S3")) {
-            matchedUser = systemUsers.find(u => u.fullname.includes("Apiyut") || u.role === "Admin" || u.role.includes("Admin"));
+            matchedUser = systemUsers.find(u => (u.fullname || u.name || "").toLowerCase().includes("apiyut") || u.role === "Admin" || u.role.includes("Admin"));
           }
         }
       }

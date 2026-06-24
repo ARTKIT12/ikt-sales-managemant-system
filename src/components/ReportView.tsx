@@ -34,9 +34,54 @@ export default function ReportView({ customers, opportunities, onToast }: Report
   const [salesFilter, setSalesFilter] = useState('All');
 
   // Sales staff mapping
-  const salesStaffMap = useMemo(() => {
-    return new Map(SAMPLE_SALES_PERSONS.map(s => [s.id, s.name]));
+  const allSalesPersons = useMemo(() => {
+    const base = [...SAMPLE_SALES_PERSONS];
+    try {
+      const realUsers = localStorage.getItem('crm_users_list');
+      if (realUsers) {
+        const parsed = JSON.parse(realUsers);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((user: any) => {
+            if (!base.some(b => b.id === user.id)) {
+              base.push({
+                id: user.id,
+                name: user.fullname || user.name || user.username,
+                role: user.role,
+                email: user.email || ''
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    try {
+      const cached = localStorage.getItem('crm_sim_users');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((user: any) => {
+            if (!base.some(b => b.id === user.id)) {
+              base.push({
+                id: user.id,
+                name: user.name || user.fullname || user.username,
+                role: user.role,
+                email: user.email || ''
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return base;
   }, []);
+
+  const salesStaffMap = useMemo(() => {
+    return new Map(allSalesPersons.map(s => [s.id, s.name]));
+  }, [allSalesPersons]);
 
   // 1. Compute Customer Report Data
   const customerReportData = useMemo(() => {
@@ -320,7 +365,7 @@ export default function ReportView({ customers, opportunities, onToast }: Report
                   className="w-full p-2 border border-slate-200 bg-slate-50 rounded-lg focus:outline-none text-slate-700 text-xs font-sans cursor-pointer"
                 >
                   <option value="All">เจ้าหน้าที่ทุกคนทั้งหมด</option>
-                  {SAMPLE_SALES_PERSONS.map(staff => (
+                  {allSalesPersons.map(staff => (
                     <option key={staff.id} value={staff.id}>{staff.name}</option>
                   ))}
                 </select>

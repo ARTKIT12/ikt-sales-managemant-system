@@ -157,9 +157,54 @@ export default function OpportunityView({
     }
   }, [viewingOpp]);
 
-  const activeSalesPersonMap = useMemo(() => {
-    return new Map(SAMPLE_SALES_PERSONS.map(s => [s.id, s.name]));
+  const allSalesPersons = useMemo(() => {
+    const base = [...SAMPLE_SALES_PERSONS];
+    try {
+      const realUsers = localStorage.getItem('crm_users_list');
+      if (realUsers) {
+        const parsed = JSON.parse(realUsers);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((user: any) => {
+            if (!base.some(b => b.id === user.id)) {
+              base.push({
+                id: user.id,
+                name: user.fullname || user.name || user.username,
+                role: user.role,
+                email: user.email || ''
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    try {
+      const cached = localStorage.getItem('crm_sim_users');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((user: any) => {
+            if (!base.some(b => b.id === user.id)) {
+              base.push({
+                id: user.id,
+                name: user.name || user.fullname || user.username,
+                role: user.role,
+                email: user.email || ''
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return base;
   }, []);
+
+  const activeSalesPersonMap = useMemo(() => {
+    return new Map(allSalesPersons.map(s => [s.id, s.name]));
+  }, [allSalesPersons]);
 
   // 1. Process Filtering & Sorting
   const processedOpportunities = useMemo(() => {
@@ -250,7 +295,7 @@ export default function OpportunityView({
     setFormEstimatedValue('');
     setFormProbability('50');
     setFormExpectedCloseDate(new Date('2026-12-31').toISOString().split('T')[0]);
-    setFormSalesPersonId(isSales ? currentUserId : '1');
+    setFormSalesPersonId(currentUserId || '1');
     setFormStatus('Lead');
     setFormRemarks('');
     setErrors({});
@@ -502,7 +547,7 @@ export default function OpportunityView({
               className="w-full text-sm border border-slate-200 bg-slate-50 p-2 rounded-lg focus:outline-none text-slate-700 font-sans cursor-pointer"
             >
               <option value="All">พนักงานขายทั้งหมด</option>
-              {SAMPLE_SALES_PERSONS.map(s => (
+              {allSalesPersons.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -841,7 +886,7 @@ export default function OpportunityView({
                     disabled={!canReassignSalesPerson}
                     className="w-full p-2.5 border border-slate-200 bg-white rounded-lg focus:outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                   >
-                    {SAMPLE_SALES_PERSONS.map(staff => (
+                    {allSalesPersons.map(staff => (
                       <option key={staff.id} value={staff.id}>{staff.name}</option>
                     ))}
                   </select>

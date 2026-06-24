@@ -1402,8 +1402,48 @@ const SupabaseDB = {
       { id: "u3", username: "wiriya", fullname: "วิริยะ สว่างงาม", role: "Sales Rep" },
       { id: "u4", username: "somsri", fullname: "สมศรี จิตรประสงค์", role: "Auditor" }
     ];
-    const cachedRole = localStorage.getItem('crm_user_role') || 'Admin';
-    const found = systemUsers.find(u => u.role === cachedRole) || systemUsers[0];
+
+    const currentUserId = localStorage.getItem('crm_user_id') || localStorage.getItem('crm_active_user_id');
+    const currentFullname = localStorage.getItem('crm_user_fullname');
+    const currentRole = localStorage.getItem('crm_user_role') || 'Admin';
+
+    // 1. Try to find in systemUsers by id first
+    if (currentUserId) {
+      const foundById = systemUsers.find(u => u.id === currentUserId);
+      if (foundById) return foundById;
+    }
+
+    // 2. Try to find in crm_sim_users by id
+    const cachedSimUsers = localStorage.getItem('crm_sim_users');
+    if (cachedSimUsers && currentUserId) {
+      try {
+        const simUsersList = JSON.parse(cachedSimUsers);
+        const foundInSim = simUsersList.find(u => u.id === currentUserId);
+        if (foundInSim) {
+          return {
+            id: foundInSim.id,
+            username: foundInSim.username || foundInSim.name?.toLowerCase().replace(/\s+/g, '') || 'user',
+            fullname: foundInSim.name || foundInSim.fullname,
+            role: foundInSim.role || currentRole
+          };
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // 3. Try to construct if currentFullname is present
+    if (currentUserId && currentFullname) {
+      return {
+        id: currentUserId,
+        username: currentFullname.toLowerCase().replace(/\s+/g, ''),
+        fullname: currentFullname,
+        role: currentRole
+      };
+    }
+
+    // 4. Fallback to role match in systemUsers
+    const found = systemUsers.find(u => u.role === currentRole) || systemUsers[0];
     return found;
   },
 
@@ -1416,6 +1456,29 @@ const SupabaseDB = {
       { id: "u3", username: "wiriya", fullname: "วิริยะ สว่างงาม", role: "Sales Rep" },
       { id: "u4", username: "somsri", fullname: "สมศรี จิตรประสงค์", role: "Auditor" }
     ];
+
+    // Combine with simulated users list if available
+    const cachedSimUsers = localStorage.getItem('crm_sim_users');
+    if (cachedSimUsers) {
+      try {
+        const parsedSim = JSON.parse(cachedSimUsers);
+        if (Array.isArray(parsedSim)) {
+          parsedSim.forEach(u => {
+            const normalizedUser = {
+              id: u.id,
+              username: u.username || u.name?.toLowerCase().replace(/\s+/g, '') || 'user',
+              fullname: u.name || u.fullname,
+              role: u.role
+            };
+            if (!systemUsers.some(su => su.id === normalizedUser.id)) {
+              systemUsers.push(normalizedUser);
+            }
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
     const cleanVal = String(userIdOrRawString).trim().toLowerCase();
 

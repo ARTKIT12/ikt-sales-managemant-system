@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Cell, PieChart, Pie, Legend } from 'recharts';
-import { Download, Plus, Search, FileText, CheckCircle2, XCircle, Trash2, Edit, Printer, Copy, RefreshCw, LayoutDashboard, List, Send, Filter } from 'lucide-react';
+import { Download, Plus, Search, FileText, CheckCircle2, XCircle, Trash2, Edit, Printer, Copy, RefreshCw, LayoutDashboard, List, Send, Filter, ChevronUp, ChevronDown } from 'lucide-react';
 
 const getUsername = (idOrName: string) => {
   if (typeof window !== 'undefined' && (window as any).SupabaseDB?.getUsernameOrDisplayName) {
@@ -30,6 +30,40 @@ export default function QuotationManagement() {
       const custs = await window.SupabaseDB.getCustomers() || [];
       setQuotations(quotes);
       setCustomers(custs);
+    }
+  };
+
+  const handleDuplicate = async (id: string) => {
+    const q = quotations.find(quote => quote.id === id);
+    if (!q) return;
+
+    if (!confirm(`คุณมั่นใจหรือไม่ที่จะทำสำเนาใบเสนอราคา ${q.quotation_no} เป็นฉบับร่างใหม่?`)) {
+      return;
+    }
+
+    const payload = {
+      title: q.title,
+      customer_id: q.customer_id,
+      quotation_date: new Date().toISOString().split('T')[0],
+      validity_days: q.validity_days || 30,
+      payment_term: q.payment_term || '30 Days',
+      sales_person: q.sales_person,
+      status: 'Draft',
+      revision_number: 0,
+      remarks: q.remarks || '',
+      terms_conditions: q.terms_conditions || '',
+      items: q.items ? q.items.map((it: any) => ({ ...it })) : [],
+      total_value: q.total_value,
+      tax_rate: q.tax_rate || 7,
+      grand_total: q.grand_total
+    };
+
+    // @ts-ignore
+    if (window.SupabaseDB) {
+      // @ts-ignore
+      await window.SupabaseDB.addQuotation(payload);
+      alert(`คัดลอกใบเสนอราคาสำเร็จ (ฉบับร่าง)`);
+      loadData();
     }
   };
 
@@ -112,7 +146,7 @@ export default function QuotationManagement() {
             </div>
           </div>
         ) : (
-           <QuoteList quotations={quotations} onEdit={setEditingId} onPrint={setPrintId} onRefresh={loadData} />
+           <QuoteList quotations={quotations} onEdit={setEditingId} onPrint={setPrintId} onDuplicate={handleDuplicate} onRefresh={loadData} />
         )}
       </main>
     </div>
@@ -134,7 +168,7 @@ function KPICard({ title, value, subtitle, icon, bg, border }: any) {
   );
 }
 
-function QuoteList({ quotations, onEdit, onPrint, onRefresh }: any) {
+function QuoteList({ quotations, onEdit, onPrint, onDuplicate, onRefresh }: any) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
@@ -195,6 +229,7 @@ function QuoteList({ quotations, onEdit, onPrint, onRefresh }: any) {
                     <div className="flex items-center justify-center gap-2">
                        <button onClick={() => onPrint(q.id)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded" title="Print/Export PDF"><Printer className="w-4 h-4"/></button>
                        <button onClick={() => onEdit(q.id)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded" title="Edit/Revise"><Edit className="w-4 h-4"/></button>
+                        <button onClick={() => onDuplicate(q.id)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 rounded" title="Duplicate Quotation"><Copy className="w-4 h-4"/></button>
                        <button onClick={() => alert('Sending email to customer...')} className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-slate-100 rounded" title="Send Email"><Send className="w-4 h-4"/></button>
                        {q.status === 'Approved' || q.status === 'Accepted' ? (
                           <button onClick={() => alert(`Converting Quotation ${q.quotation_no} to Sales Order...`)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-slate-100 rounded" title="Convert to Sales Order"><CheckCircle2 className="w-4 h-4"/></button>
@@ -230,9 +265,36 @@ function StatusBadge({ status }: { status: string }) {
 // -----------------------------------------------------
 function QuoteForm({ id, onClose, quotations, customers }: any) {
   const initialQuote = id === 'new' ? null : quotations.find((q:any) => q.id === id);
-  const [items, setItems] = useState<{ id: string; desc: string; qty: number; unit: string; rate: number }[]>(initialQuote ? (initialQuote.items || []).map((i:any, idx:number) => ({ id: i.item_no || idx.toString(), desc: i.description, qty: i.qty, unit: i.unit, rate: i.unit_rate })) : [{ id: '0', desc: '', qty: 1, unit: 'Set', rate: 0 }]);
+  const [items, setItems] = useState<{ id: string; desc: string; qty: number; duration_days: number; unit: string; rate: number }[]>(
+    initialQuote ? (initialQuote.items || []).map((i:any, idx:number) => ({
+      id: i.item_no || idx.toString(),
+      desc: i.description,
+      qty: i.qty,
+      duration_days: i.duration_days || i.duration || 1,
+      unit: i.unit,
+      rate: i.unit_rate
+    })) : [{ id: '0', desc: '', qty: 1, duration_days: 1, unit: 'Set', rate: 0 }]
+  );
   
-  const calculateTotal = () => items.reduce((acc, i) => acc + (i.qty * i.rate), 0);
+  const calculateTotal = () => items.reduce((acc, i) => acc + (i.qty * i.duration_days * i.rate), 0);
+  
+  const moveItemUp = (index: number) => {
+    if (index === 0) return;
+    const newItems = [...items];
+    const temp = newItems[index];
+    newItems[index] = newItems[index - 1];
+    newItems[index - 1] = temp;
+    setItems(newItems);
+  };
+
+  const moveItemDown = (index: number) => {
+    if (index === items.length - 1) return;
+    const newItems = [...items];
+    const temp = newItems[index];
+    newItems[index] = newItems[index + 1];
+    newItems[index + 1] = temp;
+    setItems(newItems);
+  };
   
   const handleSave = async (e: any) => {
     e.preventDefault();
@@ -265,9 +327,10 @@ function QuoteForm({ id, onClose, quotations, customers }: any) {
          description: i.desc,
          qty: i.qty,
          unit: i.unit,
-         duration: 1,
+         duration: i.duration_days,
+         duration_days: i.duration_days,
          unit_rate: i.rate,
-         total_price: i.qty * i.rate
+         total_price: i.qty * i.duration_days * i.rate
       })),
       total_value: subtotal,
       tax_rate: 7,
@@ -322,7 +385,7 @@ function QuoteForm({ id, onClose, quotations, customers }: any) {
              </div>
              <div>
                <label className="block text-sm font-bold text-slate-700 mb-1.5">Sales Rep</label>
-               <input type="text" name="sales" defaultValue={initialQuote?.sales_person || 'Admin'} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50" />
+               <input type="text" name="sales" defaultValue={initialQuote?.sales_person || (typeof localStorage !== 'undefined' ? localStorage.getItem('crm_user_fullname') : '') || 'Admin'} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50" />
              </div>
              <div>
                <label className="block text-sm font-bold text-slate-700 mb-1.5">Status</label>
@@ -343,29 +406,69 @@ function QuoteForm({ id, onClose, quotations, customers }: any) {
           <div>
              <div className="flex justify-between items-center mb-3">
                 <h3 className="text-sm font-bold text-slate-800">Line Items</h3>
-                <button type="button" onClick={() => setItems([...items, { id: Math.random().toString(), desc:'', qty:1, unit:'Set', rate:0 }])} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 flex items-center gap-1"><Plus className="w-3 h-3"/> Add Row</button>
+                <button type="button" onClick={() => setItems([...items, { id: Math.random().toString(), desc:'', qty:1, duration_days:1, unit:'Set', rate:0 }])} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 flex items-center gap-1"><Plus className="w-3 h-3"/> Add Row</button>
              </div>
              <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
                     <tr>
                       <th className="py-2 px-3">Description</th>
-                      <th className="py-2 px-3 w-24">Qty</th>
-                      <th className="py-2 px-3 w-24">Unit</th>
+                      <th className="py-2 px-3 w-20 text-center">Qty</th>
+                      <th className="py-2 px-3 w-24 text-center">Duration Day</th>
+                      <th className="py-2 px-3 w-20 text-center">Unit</th>
                       <th className="py-2 px-3 w-32 text-right">Unit Rate</th>
                       <th className="py-2 px-3 w-32 text-right">Total</th>
-                      <th className="py-2 px-3 w-12 text-center"></th>
+                      <th className="py-2 px-3 w-28 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {items.map((item, index) => (
                       <tr key={item.id}>
-                        <td className="p-2"><input value={item.desc} onChange={e => { const newI = [...items]; newI[index].desc = e.target.value; setItems(newI); }} className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50" placeholder="Item description" required/></td>
-                        <td className="p-2"><input type="number" min="1" value={item.qty} onChange={e => { const newI = [...items]; newI[index].qty = parseFloat(e.target.value)||0; setItems(newI); }} className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50 text-center" required/></td>
+                        <td className="p-2">
+                          <textarea 
+                            value={item.desc} 
+                            onChange={e => { const newI = [...items]; newI[index].desc = e.target.value; setItems(newI); }} 
+                            className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50 resize-y" 
+                            rows={2}
+                            placeholder="รายละเอียดสินค้า/บริการ (รองรับหลายบรรทัด)" 
+                            required
+                          />
+                        </td>
+                        <td className="p-2"><input type="number" min="1" step="any" value={item.qty} onChange={e => { const newI = [...items]; newI[index].qty = parseFloat(e.target.value)||0; setItems(newI); }} className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50 text-center" required/></td>
+                        <td className="p-2"><input type="number" min="1" step="any" value={item.duration_days} onChange={e => { const newI = [...items]; newI[index].duration_days = parseFloat(e.target.value)||0; setItems(newI); }} className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50 text-center" required/></td>
                         <td className="p-2"><input value={item.unit} onChange={e => { const newI = [...items]; newI[index].unit = e.target.value; setItems(newI); }} className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50 text-center" /></td>
                         <td className="p-2"><input type="number" step="0.01" value={item.rate} onChange={e => { const newI = [...items]; newI[index].rate = parseFloat(e.target.value)||0; setItems(newI); }} className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded bg-slate-50 text-right" required/></td>
-                        <td className="p-2 text-right font-mono text-sm font-bold pt-3 bg-slate-50/50">{(item.qty * item.rate).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
-                        <td className="p-2 text-center"><button type="button" onClick={() => setItems(items.filter((_, i) => i !== index))} className="p-1 text-slate-400 hover:text-rose-500"><Trash2 className="w-4 h-4"/></button></td>
+                        <td className="p-2 text-right font-mono text-sm font-bold pt-3 bg-slate-50/50">{(item.qty * item.duration_days * item.rate).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+                        <td className="p-2 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button 
+                              type="button" 
+                              onClick={() => moveItemUp(index)} 
+                              disabled={index === 0} 
+                              className={`p-1.5 rounded transition-all ${index === 0 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} 
+                              title="ย้ายขึ้น (Move Up)"
+                            >
+                              <ChevronUp className="w-4 h-4"/>
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => moveItemDown(index)} 
+                              disabled={index === items.length - 1} 
+                              className={`p-1.5 rounded transition-all ${index === items.length - 1 ? 'text-slate-200 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} 
+                              title="ย้ายลง (Move Down)"
+                            >
+                              <ChevronDown className="w-4 h-4"/>
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => setItems(items.filter((_, i) => i !== index))} 
+                              className="p-1.5 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all" 
+                              title="ลบแถว (Remove)"
+                            >
+                              <Trash2 className="w-4 h-4"/>
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -457,6 +560,7 @@ function PrintPreview({ id, onClose, onEdit, quotations, customers }: any) {
                <div className="mb-2 uppercase tracking-wide">QUOTATION</div>
                <div className="grid grid-cols-[80px_10px_1fr]">
                   <div>Our Ref.</div><div>:</div><div>{quote.quotation_no}{quote.revision_number > 0 ? `-R${quote.revision_number}` : ''}</div>
+                  <div className="text-indigo-750 font-bold">Subject</div><div className="text-indigo-750 font-bold">:</div><div className="text-indigo-750 font-bold break-words leading-tight">{quote.title}</div>
                   <div>Date</div><div>:</div><div>{new Date(quote.quotation_date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric'})}</div>
                   <div className="mt-2">No. of Page</div><div className="mt-2">:</div><div className="mt-2">1</div>
                </div>
@@ -514,7 +618,7 @@ function PrintPreview({ id, onClose, onEdit, quotations, customers }: any) {
                             </div>
                           )}
                        </td>
-                       <td className="py-2 px-2 text-center border-r border-black">{it.duration || '1'}</td>
+                       <td className="py-2 px-2 text-center border-r border-black">{it.duration_days || it.duration || '1'}</td>
                        <td className="py-2 px-2 text-right border-r border-black font-sans">{(it.unit_rate).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                        <td className="py-2 px-2 text-right font-sans">{(it.total_price).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
                     </tr>
