@@ -340,16 +340,6 @@
         <p class="brand-subtitle">ระบบบริหารความสัมพันธ์และประเมินงานขาย</p>
       </div>
 
-      <!-- Auth Switch Tabs -->
-      <div class="auth-tabs">
-        <div class="auth-tab active" id="tab-signin" onclick="switchAuthTab('signin')">
-          <i class="fas fa-sign-in-alt me-1"></i> เข้าสู่ระบบ
-        </div>
-        <div class="auth-tab" id="tab-signup" onclick="switchAuthTab('signup')">
-          <i class="fas fa-user-plus me-1"></i> สมัครสมาชิก
-        </div>
-      </div>
-
       <!-- Sign In Form -->
       <form id="form-signin" onsubmit="handleSignIn(event)">
         <div class="form-group-glass">
@@ -376,39 +366,7 @@
         </button>
       </form>
 
-      <!-- Sign Up Form (Hidden by default) -->
-      <form id="form-signup" onsubmit="handleSignUp(event)" class="d-none">
-        <div class="form-group-glass">
-          <input type="text" id="signup-fullname" class="input-glass" placeholder="ชื่อ-นามสกุลจริง (Fullname)" required autocomplete="name">
-          <i class="fas fa-user input-icon"></i>
-        </div>
 
-        <div class="form-group-glass">
-          <input type="email" id="signup-email" class="input-glass" placeholder="อีเมลองค์กร (Work Email)" required autocomplete="email">
-          <i class="fas fa-envelope input-icon"></i>
-        </div>
-
-        <div class="form-group-glass">
-          <input type="password" id="signup-password" class="input-glass" placeholder="ตั้งรหัสผ่าน (Password)" required autocomplete="new-password">
-          <i class="fas fa-lock input-icon"></i>
-        </div>
-
-        <div class="form-group-glass">
-          <select id="signup-role" class="select-glass" required>
-            <option value="" disabled selected>เลือกตำแหน่ง/หน้าที่ผู้ใช้...</option>
-            <option value="Sales">Sales Representative (ผู้แทนฝ่ายขาย)</option>
-            <option value="Sales Manager">Sales Manager (หัวหน้าฝ่ายขาย)</option>
-            <option value="Management">Management (ผู้บริหาร/ดูรายงานอย่างเดียว)</option>
-            <option value="Admin">System Administrator (ผู้ดูแลระบบ)</option>
-          </select>
-          <i class="fas fa-shield-halved input-icon"></i>
-        </div>
-
-        <button type="submit" class="btn btn-gradient mb-3" id="btn-signup-submit">
-          <span id="btn-signup-text">สมัครสมาชิกและขอสิทธิ์ใช้งาน</span>
-          <span class="spinner-border spinner-border-sm d-none" id="btn-signup-spinner" role="status"></span>
-        </button>
-      </form>
 
       <!-- Quick Demo Accounts -->
       <div id="demo-section">
@@ -440,28 +398,7 @@
   <script src="/supabase.js"></script>
 
   <script>
-    // Tab switching logic
-    function switchAuthTab(type) {
-      const tabSignin = document.getElementById('tab-signin');
-      const tabSignup = document.getElementById('tab-signup');
-      const formSignin = document.getElementById('form-signin');
-      const formSignup = document.getElementById('form-signup');
-      const demoSection = document.getElementById('demo-section');
 
-      if (type === 'signin') {
-        tabSignin.classList.add('active');
-        tabSignup.classList.remove('active');
-        formSignin.classList.remove('d-none');
-        formSignup.classList.add('d-none');
-        demoSection.classList.remove('d-none');
-      } else {
-        tabSignin.classList.remove('active');
-        tabSignup.classList.add('active');
-        formSignin.classList.add('d-none');
-        formSignup.classList.remove('d-none');
-        demoSection.classList.add('d-none');
-      }
-    }
 
     // Auto-fill demo account details and helper info
     function fillDemoAccount(email, role) {
@@ -636,121 +573,7 @@
       }
     }
 
-    // Supabase Auth: Sign Up
-    async function handleSignUp(e) {
-      e.preventDefault();
-      
-      const fullname = document.getElementById('signup-fullname').value.trim();
-      const email = document.getElementById('signup-email').value.trim();
-      const password = document.getElementById('signup-password').value;
-      const role = document.getElementById('signup-role').value;
 
-      const btnText = document.getElementById('btn-signup-text');
-      const btnSpinner = document.getElementById('btn-signup-spinner');
-      const submitBtn = document.getElementById('btn-signup-submit');
-
-      submitBtn.disabled = true;
-      btnText.classList.add('d-none');
-      btnSpinner.classList.remove('d-none');
-
-      try {
-        if (password.length < 6) {
-          throw new Error('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
-        }
-
-        if (window.supabaseClient) {
-          const { data, error } = await window.supabaseClient.auth.signUp({
-            email: email,
-            password: password,
-            options: {
-              data: {
-                fullname: fullname,
-                role: role
-              }
-            }
-          });
-
-          if (error) throw error;
-
-          // Try putting into public.users database table if online
-          try {
-            await fetch(`${SUPABASE_REST_URL}/users`, {
-              method: 'POST',
-              headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'resolution=merge-duplicates'
-              },
-              body: JSON.stringify({
-                id: data.user ? data.user.id : crypto.randomUUID(),
-                username: email.split('@')[0],
-                fullname: fullname,
-                email: email,
-                role: role,
-                status: 'Active'
-              })
-            });
-          } catch (dbErr) {
-            console.warn("Failed to write to public.users table during signup", dbErr);
-          }
-
-          Swal.fire({
-            title: 'ลงทะเบียนสำเร็จ!',
-            text: 'ระบบได้สร้างสิทธิ์บัญชีผู้ใช้ใหม่เรียบร้อยแล้ว กรุณาเข้าสู่ระบบเพื่อใช้งานระบบงานหลัก',
-            icon: 'success',
-            confirmButtonText: 'ตกลง',
-            confirmButtonColor: '#3b82f6'
-          }).then(() => {
-            switchAuthTab('signin');
-            document.getElementById('signin-email').value = email;
-            document.getElementById('signin-password').value = '';
-          });
-        } else {
-          // Offline/local sandbox user mock persistence
-          const usersList = JSON.parse(localStorage.getItem('crm_users_list')) || [
-            { id: "u1", username: "apiyut", fullname: "Apiyut (Admin)", role: "Admin", email: "Apiyut.noeikhiaw@th.ikm.com" },
-            { id: "u2", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", role: "Sales Manager", email: "pimjai.k@ikm-testing.co.th" },
-            { id: "u3", username: "wiriya", fullname: "วิริยะ สว่างงาม", role: "Sales Rep", email: "wiriya.s@ikm-testing.co.th" },
-            { id: "u4", username: "somsri", fullname: "สมศรี จิตรประสงค์", role: "Auditor", email: "somsri.j@ikm-testing.co.th" }
-          ];
-
-          usersList.push({
-            id: 'u-' + Date.now(),
-            username: email.split('@')[0],
-            fullname: fullname,
-            email: email,
-            role: role,
-            status: 'Active'
-          });
-          localStorage.setItem('crm_users_list', JSON.stringify(usersList));
-
-          Swal.fire({
-            title: 'ลงทะเบียนจำลองสำเร็จ!',
-            text: 'ระบบได้ลงบันทึกใน Local Base เรียบร้อย (เนื่องจาก SDK โหลดออฟไลน์)',
-            icon: 'success',
-            confirmButtonText: 'ตกลง',
-            confirmButtonColor: '#3b82f6'
-          }).then(() => {
-            switchAuthTab('signin');
-            document.getElementById('signin-email').value = email;
-            document.getElementById('signin-password').value = password;
-          });
-        }
-      } catch (err) {
-        Swal.fire({
-          title: 'ลงทะเบียนไม่สำเร็จ',
-          text: err.message || 'โปรดตรวจสอบรายละเอียด และลองอีกครั้ง',
-          icon: 'error',
-          confirmButtonText: 'รับทราบ',
-          confirmButtonColor: '#ef4444'
-        });
-      } finally {
-        submitBtn.disabled = false;
-        btnText.classList.remove('d-none');
-        btnSpinner.classList.add('d-none');
-      }
-    }
 
     // Supabase Auth: Forgot Password
     async function handleForgotPassword(e) {
