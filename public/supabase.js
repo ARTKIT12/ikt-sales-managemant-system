@@ -1280,10 +1280,10 @@ const SupabaseDB = {
       return JSON.parse(local);
     }
     const defaultUsersList = [
-      { id: "d1ef4942-83b3-4f9e-bbb4-7a0df47ab001", username: "apiyut", fullname: "Apiyut (Admin)", email: "Apiyut.noeikhiaw@th.ikm.com", role: "Admin", status: "Active" },
-      { id: "d2ef4942-83b3-4f9e-bbb4-7a0df47ab002", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", email: "pimjai.k@ikm-testing.co.th", role: "Sales Manager", status: "Active" },
-      { id: "d3ef4942-83b3-4f9e-bbb4-7a0df47ab003", username: "wiriya", fullname: "วิริยะ สว่างงาม", email: "wiriya.s@ikm-testing.co.th", role: "Sales Rep", status: "Active" },
-      { id: "d4ef4942-83b3-4f9e-bbb4-7a0df47ab004", username: "somsri", fullname: "สมศรี จิตรประสงค์", email: "somsri.j@ikm-testing.co.th", role: "Auditor", status: "Active" }
+      { id: "d1ef4942-83b3-4f9e-bbb4-7a0df47ab001", username: "apiyut", fullname: "Apiyut (Admin)", email: "Apiyut.noeikhiaw@th.ikm.com", role: "Admin", status: "Active", password: "crm123456" },
+      { id: "d2ef4942-83b3-4f9e-bbb4-7a0df47ab002", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", email: "pimjai.k@ikm-testing.co.th", role: "Sales Manager", status: "Active", password: "crm123456" },
+      { id: "d3ef4942-83b3-4f9e-bbb4-7a0df47ab003", username: "wiriya", fullname: "วิริยะ สว่างงาม", email: "wiriya.s@ikm-testing.co.th", role: "Sales Rep", status: "Active", password: "crm123456" },
+      { id: "d4ef4942-83b3-4f9e-bbb4-7a0df47ab004", username: "somsri", fullname: "สมศรี จิตรประสงค์", email: "somsri.j@ikm-testing.co.th", role: "Auditor", status: "Active", password: "crm123456" }
     ];
     localStorage.setItem('crm_users_list', JSON.stringify(defaultUsersList));
     return defaultUsersList;

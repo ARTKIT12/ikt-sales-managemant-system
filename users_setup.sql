@@ -10,9 +10,15 @@ CREATE TABLE IF NOT EXISTS public.users (
     email VARCHAR(255) UNIQUE NOT NULL,
     role VARCHAR(50) DEFAULT 'Sales Rep',
     status VARCHAR(50) DEFAULT 'Active', -- 'Active', 'Suspended'
+    password VARCHAR(255) DEFAULT 'crm123456',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Alter table to add password if it already exists
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password VARCHAR(255) DEFAULT 'crm123456';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Active';
+
 
 -- Enable Row Level Security (RLS) for users
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;

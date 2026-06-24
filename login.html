@@ -443,73 +443,38 @@
       try {
         let authResult = null;
         let loginSuccess = false;
-        let userRole = 'Admin';
+        let userRole = 'Sales Rep';
         let fullName = email.split('@')[0];
 
-        // 1. Try actual Supabase Auth if online
-        if (window.supabaseClient) {
-          try {
-            const { data, error } = await window.supabaseClient.auth.signInWithPassword({
-              email: email,
-              password: password
-            });
+        // Retrieve and sync users first
+        let dbUsersList = [];
+        try {
+          dbUsersList = await SupabaseDB.getUsers();
+        } catch (e) {
+          console.warn("Failed to retrieve users, falling back to local cache", e);
+          dbUsersList = JSON.parse(localStorage.getItem('crm_users_list')) || [];
+        }
 
-            if (error) {
-              console.warn("Supabase auth signin failed, trying fallback validation...", error.message);
-              // Fallback to local authentication for known default/seeded credentials to guarantee flawless developer experience
-              if (password === 'crm123456') {
-                loginSuccess = true;
-                // Match default emails
-                if (email.toLowerCase().includes('apiyut')) {
-                  userRole = 'Admin';
-                  fullName = 'Apiyut (Admin)';
-                } else if (email.toLowerCase().includes('pimjai')) {
-                  userRole = 'Sales Manager';
-                  fullName = 'พิมพ์ใจ กิตติคุณ';
-                } else if (email.toLowerCase().includes('wiriya')) {
-                  userRole = 'Sales Rep';
-                  fullName = 'วิริยะ สว่างงาม';
-                } else if (email.toLowerCase().includes('somsri')) {
-                  userRole = 'Auditor';
-                  fullName = 'สมศรี จิตรประสงค์';
-                }
-              } else {
-                throw error;
-              }
-            } else {
-              authResult = data;
-              loginSuccess = true;
-              
-              // Extract profile from user_metadata
-              const meta = data.user.user_metadata || {};
-              userRole = meta.role || 'Sales Rep';
-              fullName = meta.fullname || email.split('@')[0];
-            }
-          } catch (authErr) {
-            // Local fallback validation
-            if (password === 'crm123456') {
-              loginSuccess = true;
-              if (email.toLowerCase().includes('apiyut')) {
-                userRole = 'Admin';
-                fullName = 'Apiyut (Admin)';
-              } else if (email.toLowerCase().includes('pimjai')) {
-                userRole = 'Sales Manager';
-                fullName = 'พิมพ์ใจ กิตติคุณ';
-              } else if (email.toLowerCase().includes('wiriya')) {
-                userRole = 'Sales Rep';
-                fullName = 'วิริยะ สว่างงาม';
-              } else if (email.toLowerCase().includes('somsri')) {
-                userRole = 'Auditor';
-                fullName = 'สมศรี จิตรประสงค์';
-              }
-            } else {
-              throw authErr;
-            }
+        const foundUser = dbUsersList.find(u => u.email && u.email.trim().toLowerCase() === email.toLowerCase());
+
+        // 1. Can Lock User (สามารถ Lock User ไม่ให้ใช้งานได้)
+        if (foundUser && foundUser.status === 'Suspended') {
+          throw new Error("บัญชีผู้ใช้งานนี้ถูกระงับการใช้งาน (Locked/Suspended) โดยผู้ดูแลระบบ กรุณาติดต่อผู้ดูแลระบบเพื่อขอเปิดสิทธิ์ใช้งาน");
+        }
+
+        // 2. Admin-defined and updated password validation
+        let passwordMatched = false;
+        if (foundUser) {
+          const expectedPassword = foundUser.password || 'crm123456';
+          if (password === expectedPassword) {
+            passwordMatched = true;
+            userRole = foundUser.role;
+            fullName = foundUser.fullname;
           }
         } else {
-          // No client loaded yet, check offline default
+          // If the user doesn't exist in our tables yet, we fallback to default password check for default demo accounts
           if (password === 'crm123456') {
-            loginSuccess = true;
+            passwordMatched = true;
             if (email.toLowerCase().includes('apiyut')) {
               userRole = 'Admin';
               fullName = 'Apiyut (Admin)';
@@ -523,10 +488,15 @@
               userRole = 'Auditor';
               fullName = 'สมศรี จิตรประสงค์';
             }
-          } else {
-            throw new Error("ระบบเชื่อมต่อเซิร์ฟเวอร์ขัดข้องชั่วคราว กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต");
           }
         }
+
+        if (!passwordMatched) {
+          throw new Error("รหัสผ่านไม่ถูกต้อง (Incorrect password) กรุณาตรวจสอบและลองอีกครั้ง");
+        }
+
+        // Keep session data aligned
+        loginSuccess = true;
 
         if (loginSuccess) {
           // Remember Me logic

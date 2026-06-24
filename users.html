@@ -163,11 +163,21 @@
               <input type="email" class="form-control" id="user-email" required placeholder="name@ikm-testing.co.th">
             </div>
             <div class="mb-3">
-              <label class="form-label text-dark fw-bold">สถานะสิทธิ์งาน:</label>
+              <label class="form-label text-dark fw-bold">สถานะสิทธิ์งาน (Status):</label>
               <select class="form-select" id="user-status">
                 <option value="Active">เปิดระบบปกติ (Active)</option>
-                <option value="Suspended">พักสัญญาใช้งาน (Suspended)</option>
+                <option value="Suspended">พักสัญญาใช้งาน (Suspended / Locked)</option>
               </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label text-dark fw-bold">รหัสผ่านสำหรับเข้าสู่ระบบ (Password):</label>
+              <div class="input-group">
+                <input type="password" class="form-control font-monospace" id="user-password" required placeholder="กำหนดรหัสผ่านโดย Admin" minlength="6">
+                <button class="btn btn-outline-secondary" type="button" id="btn-toggle-password" onclick="togglePasswordVisibility()">
+                  <i class="fa fa-eye" id="eye-icon"></i>
+                </button>
+              </div>
+              <small class="text-danger" style="font-size: 11px; font-weight: 500;">* กำหนดและแก้ไขโดยผู้ดูแลระบบ (Admin) เท่านั้น</small>
             </div>
           </div>
           <div class="modal-footer bg-light py-2">
@@ -254,6 +264,7 @@
       document.getElementById('user-role').value = 'Sales Rep';
       document.getElementById('user-email').value = '';
       document.getElementById('user-status').value = 'Active';
+      document.getElementById('user-password').value = 'crm123456';
       document.getElementById('userModalTitle').innerHTML = '<i class="fa fa-user-plus text-warning me-2"></i> บันทึกข้อมูลพนักงานใหม่';
       
       const modal = new bootstrap.Modal(document.getElementById('userModal'));
@@ -270,10 +281,25 @@
       document.getElementById('user-role').value = usr.role;
       document.getElementById('user-email').value = usr.email;
       document.getElementById('user-status').value = usr.status;
+      document.getElementById('user-password').value = usr.password || 'crm123456';
       document.getElementById('userModalTitle').innerHTML = '<i class="fa fa-user-edit text-warning me-2"></i> แก้ไขข้อมูลพนักงาน';
 
       const modal = new bootstrap.Modal(document.getElementById('userModal'));
       modal.show();
+    }
+
+    function togglePasswordVisibility() {
+      const pwdEl = document.getElementById('user-password');
+      const iconEl = document.getElementById('eye-icon');
+      if (pwdEl.type === 'password') {
+        pwdEl.type = 'text';
+        iconEl.classList.remove('fa-eye');
+        iconEl.classList.add('fa-eye-slash');
+      } else {
+        pwdEl.type = 'password';
+        iconEl.classList.remove('fa-eye-slash');
+        iconEl.classList.add('fa-eye');
+      }
     }
 
     function deleteUser(id) {
@@ -312,15 +338,16 @@
       const role = document.getElementById('user-role').value;
       const email = document.getElementById('user-email').value;
       const status = document.getElementById('user-status').value;
+      const password = document.getElementById('user-password').value;
 
       try {
         if (id) {
           // Edit
-          await SupabaseDB.updateUser(id, { username, fullname, role, email, status });
+          await SupabaseDB.updateUser(id, { username, fullname, role, email, status, password });
         } else {
           // Add
           const newId = crypto.randomUUID();
-          await SupabaseDB.addUser({ id: newId, username, fullname, role, email, status });
+          await SupabaseDB.addUser({ id: newId, username, fullname, role, email, status, password });
         }
 
         usersCached = await SupabaseDB.getUsers();
