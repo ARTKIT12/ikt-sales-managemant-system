@@ -1,5 +1,18 @@
 // Common Shell Layout Injection and System Controls
 document.addEventListener('DOMContentLoaded', () => {
+  // 0. Check Authentication and Session Management
+  const isLoginPage = window.location.pathname.endsWith('login.html') || window.location.pathname.endsWith('reset-password.html');
+  const loggedInEmail = localStorage.getItem('crm_user_email');
+  
+  if (!loggedInEmail && !isLoginPage) {
+    window.location.href = 'login.html';
+    return;
+  }
+  if (loggedInEmail && isLoginPage) {
+    window.location.href = 'index.html';
+    return;
+  }
+
   // 1. Setup shared UI shell elements dynamically to prevent code duplication
   injectSharedShell();
 
@@ -73,10 +86,15 @@ function injectSharedShell() {
 
             <!-- User Session profile -->
             <li class="nav-item dropdown px-2">
-              <a class="nav-link active fw-bold d-flex align-items-center gap-2" href="users.html">
-                <img src="https://ui-avatars.com/api/?name=Tanapol+Admin&background=0d6efd&color=fff" class="rounded-circle" style="width: 28px; height: 28px;" alt="User">
-                <span class="d-none d-sm-inline" id="user-role-span">ดลภัทร (Admin)</span>
+              <a class="nav-link dropdown-toggle active fw-bold d-flex align-items-center gap-2" href="#" id="userProfileDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(localStorage.getItem('crm_user_fullname') || 'User')}&background=0d6efd&color=fff" class="rounded-circle" style="width: 28px; height: 28px;" alt="User">
+                <span class="d-none d-sm-inline" id="user-role-span">${localStorage.getItem('crm_user_fullname') || 'User'} (${localStorage.getItem('crm_user_role') || 'Admin'})</span>
               </a>
+              <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="userProfileDropdown" style="z-index: 10000;">
+                <li><a class="dropdown-item py-2 text-dark" href="users.html"><i class="fas fa-user-shield me-2 text-indigo"></i>ข้อมูลผู้ใช้งาน</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item py-2 text-danger" href="#" onclick="handleGlobalSignOut(event)"><i class="fas fa-sign-out-alt me-2"></i>ออกจากระบบ</a></li>
+              </ul>
             </li>
           </ul>
         </div>
@@ -1222,3 +1240,26 @@ window.applyLanguageTranslations = applyLanguageTranslations;
 window.initSystemLanguage = initSystemLanguage;
 window.checkAndShowSystemNotifications = checkAndShowSystemNotifications;
 window.renderDashboardNotificationsList = renderDashboardNotificationsList;
+
+window.handleGlobalSignOut = async function(e) {
+  if (e) e.preventDefault();
+  
+  // Clear local storage session
+  localStorage.removeItem('crm_user_role');
+  localStorage.removeItem('crm_user_fullname');
+  localStorage.removeItem('crm_user_email');
+  localStorage.removeItem('crm_user_id');
+  localStorage.removeItem('supabase_session_token');
+  
+  // Try Supabase Auth SignOut
+  if (window.supabaseClient) {
+    try {
+      await window.supabaseClient.auth.signOut();
+    } catch (err) {
+      console.warn("Supabase SignOut error", err);
+    }
+  }
+  
+  // Redirect to login page
+  window.location.href = 'login.html';
+};

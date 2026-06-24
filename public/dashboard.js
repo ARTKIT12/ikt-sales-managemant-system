@@ -62,9 +62,10 @@ async function loadDashboardData() {
 
     // Set welcome profile username if logged in
     const cachedUser = localStorage.getItem('crm_user_role') || 'Admin';
+    const cachedFullname = localStorage.getItem('crm_user_fullname') || 'Apiyut';
     const welcomeUserEl = document.getElementById('welcome-username');
     if (welcomeUserEl) {
-      welcomeUserEl.innerText = `คุณดลภัทร (${cachedUser})`;
+      welcomeUserEl.innerText = `${cachedFullname} (${cachedUser})`;
     }
 
     // Trigger initial render

@@ -54,10 +54,12 @@ export default function App() {
 
   // Role Simulation & User Sessions
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    const mainRole = localStorage.getItem('crm_user_role');
+    if (mainRole) return mainRole as UserRole;
     return (localStorage.getItem('crm_active_role') as UserRole) || 'System Administrator';
   });
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem('crm_active_user_id') || '3'; // '3' is Tanapol (System Administrator)
+    return localStorage.getItem('crm_user_id') || localStorage.getItem('crm_active_user_id') || '3'; // '3' is Tanapol (System Administrator)
   });
 
   const handleUpdateSession = (userId: string, role: UserRole) => {
@@ -65,6 +67,15 @@ export default function App() {
     setCurrentRole(role);
     localStorage.setItem('crm_active_user_id', userId);
     localStorage.setItem('crm_active_role', role);
+    localStorage.setItem('crm_user_role', role);
+    localStorage.setItem('crm_user_id', userId);
+    // Sync fullname and email if possible from sim_users
+    const simUsers = JSON.parse(localStorage.getItem('crm_sim_users') || '[]');
+    const foundUser = simUsers.find((u: any) => u.id === userId);
+    if (foundUser) {
+      localStorage.setItem('crm_user_fullname', foundUser.fullname);
+      localStorage.setItem('crm_user_email', foundUser.email || `${foundUser.username}@ikm-testing.co.th`);
+    }
   };
 
   // State Collections
