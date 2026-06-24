@@ -21,6 +21,45 @@ async function loadDashboardData() {
     allOpportunities = await SupabaseDB.getOpportunities();
     allActivities = await SupabaseDB.getActivities();
 
+    // Dynamically synthesize activities for Opportunities and Customers from live Supabase to ensure they display on Netlify / new devices
+    const synthesized = [];
+    allOpportunities.forEach(opp => {
+      const exists = allActivities.some(a => a.target_id === opp.id && (a.action === 'จดทะเบียนโอกาสขายใหม่' || a.action === 'แก้ไขโครงการขาย'));
+      if (!exists) {
+        synthesized.push({
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+          action: 'จดทะเบียนโอกาสขายใหม่',
+          target_type: 'Opportunity',
+          target_id: opp.id,
+          details: `ระบุเป้าหมายดีลงานใหม่สำหรับ "${opp.project_name || 'TST'}"`,
+          created_at: opp.created_at || new Date().toISOString()
+        });
+      }
+    });
+
+    allCustomers.forEach(cust => {
+      const exists = allActivities.some(a => a.target_id === cust.id && (a.action === 'เพิ่มทะเบียนลูกค้าใหม่' || a.action === 'แก้ไขทะเบียนลูกค้า'));
+      if (!exists) {
+        synthesized.push({
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+          action: 'เพิ่มทะเบียนลูกค้าใหม่',
+          target_type: 'Customer',
+          target_id: cust.id,
+          details: `ลงทะเบียนลูกค้าใหม่: ${cust.customer_name} ในหมวดหมู่อุตสาหกรรม ${cust.industry_type || ''}`,
+          created_at: cust.created_at || new Date().toISOString()
+        });
+      }
+    });
+
+    if (synthesized.length > 0) {
+      allActivities = [...allActivities, ...synthesized];
+      // Sort descending by created_at
+      allActivities.sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      localStorage.setItem('crm_activities', JSON.stringify(allActivities));
+    }
+
     // Set welcome profile username if logged in
     const cachedUser = localStorage.getItem('crm_user_role') || 'Admin';
     const welcomeUserEl = document.getElementById('welcome-username');
@@ -452,6 +491,46 @@ function renderRecentTimeline(activities, customers, opportunities) {
     const displayTime = `${formattedDate} ${timestamp}${timeSuffix}`;
     const actionLabel = act.action;
     
+    let targetLabel = `ID: ${act.target_id.slice(0,6)}`;
+    if (act.target_type === 'Opportunity') {
+      const opp = (opportunities || []).find(o => o.id === act.target_id) || (typeof allOpportunities !== 'undefined' ? allOpportunities.find(o => o.id === act.target_id) : null);
+      
+      const storedUsers = localStorage.getItem('crm_users_list');
+      const systemUsers = storedUsers ? JSON.parse(storedUsers) : [
+        { id: "u1", fullname: "Apiyut (Admin)", role: "Admin" },
+        { id: "u2", fullname: "พิมพ์ใจ กิตติคุณ", role: "Sales Manager" },
+        { id: "u3", fullname: "วิริยะ สว่างงาม", role: "Sales Rep" },
+        { id: "u4", fullname: "สมศรี จิตรประสงค์", role: "Auditor" }
+      ];
+
+      let matchedUser = null;
+      if (opp) {
+        const rawSalesPerson = opp.sales_person_id || opp.sales_person || "";
+        
+        // 1. Try to find direct match in fullname
+        matchedUser = systemUsers.find(u => {
+          const fn = u.fullname.toLowerCase();
+          const rp = rawSalesPerson.toLowerCase();
+          return fn.includes(rp) || rp.includes(fn);
+        });
+
+        // 2. Map default sales person names/codes to the new crm_users_list entries
+        if (!matchedUser) {
+          if (rawSalesPerson.includes("เอกชัย") || rawSalesPerson.includes("S01") || rawSalesPerson.includes("S1")) {
+            matchedUser = systemUsers.find(u => u.fullname.includes("วิริยะ") || u.role === "Sales Rep" || u.role.includes("Sales"));
+          } else if (rawSalesPerson.includes("สุชาดา") || rawSalesPerson.includes("S02") || rawSalesPerson.includes("S2")) {
+            matchedUser = systemUsers.find(u => u.fullname.includes("พิมพ์ใจ") || u.role === "Sales Manager" || u.role.includes("Manager"));
+          } else if (rawSalesPerson.includes("ธนพล") || rawSalesPerson.includes("S03") || rawSalesPerson.includes("S3")) {
+            matchedUser = systemUsers.find(u => u.fullname.includes("Apiyut") || u.role === "Admin" || u.role.includes("Admin"));
+          }
+        }
+      }
+
+      const displayUsername = matchedUser ? matchedUser.fullname : (systemUsers[0] ? systemUsers[0].fullname : "Apiyut (Admin)");
+      const cleanUsername = displayUsername.split('(')[0].trim();
+      targetLabel = `<i class="fa fa-user text-slate-400 me-1" style="font-size: 8px;"></i>${cleanUsername}`;
+    }
+    
     html += `
       <div class="d-flex align-items-start gap-2.5 pb-2 border-bottom border-light">
         ${iconHTML}
@@ -463,7 +542,7 @@ function renderRecentTimeline(activities, customers, opportunities) {
           <p class="text-muted small m-0 mb-1" style="font-size: 0.76rem; line-height: 1.35;">${act.details}</p>
           <div class="d-flex align-items-center gap-2">
             ${typeBadge} 
-            <span class="badge bg-light text-dark font-monospace" style="font-size:9px; border:1px solid #e2e8f0;">ID: ${act.target_id.slice(0,6)}</span>
+            <span class="badge bg-light text-dark font-sans" style="font-size:9px; border:1px solid #e2e8f0; padding: 2px 6px;">${targetLabel}</span>
           </div>
         </div>
       </div>

@@ -36,7 +36,7 @@ export default function DeliveryMonitoringView({
   const [viewingProject, setViewingProject] = useState<Project | null>(null);
   
   const canModify = currentRole !== 'Management';
-  const canDelete = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDelete = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   const filteredProjects = useMemo(() => {
     return projects.filter(p => {

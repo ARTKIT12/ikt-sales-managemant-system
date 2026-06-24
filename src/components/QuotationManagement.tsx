@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 import { Download, Plus, Search, FileText, CheckCircle2, XCircle, Trash2, Edit, Printer, Copy, RefreshCw, LayoutDashboard, List, Send, Filter } from 'lucide-react';
 
+const getUsername = (idOrName: string) => {
+  if (typeof window !== 'undefined' && (window as any).SupabaseDB?.getUsernameOrDisplayName) {
+    return (window as any).SupabaseDB.getUsernameOrDisplayName(idOrName);
+  }
+  const clean = String(idOrName).toLowerCase();
+  return clean.includes("ธนพล") ? "@apiyut" : clean.includes("สุชาดา") ? "@pimjai" : clean.includes("เอกชัย") ? "@wiriya" : idOrName;
+};
+
 export default function QuotationManagement() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'list'>('dashboard');
   const [quotations, setQuotations] = useState<any[]>([]);
@@ -172,6 +180,11 @@ function QuoteList({ quotations, onEdit, onPrint, onRefresh }: any) {
                  <td className="py-3 px-4">
                     <div className="text-sm font-bold text-slate-800">{q.title}</div>
                     <div className="text-xs text-slate-500">{q.customer?.customer_name || 'N/A'}</div>
+                    <div className="text-[10px] text-slate-400 font-mono mt-1 flex flex-wrap gap-1.5">
+                      <span className="bg-slate-100 text-slate-600 px-1 rounded">Owner: {getUsername(q.sales_person || 'ธนพล คำดี (S03)')}</span>
+                      <span className="bg-blue-50 text-blue-600 px-1 rounded">Created: {getUsername(q.created_by || 'apiyut')}</span>
+                      {q.status === 'Approved' && <span className="bg-emerald-50 text-emerald-600 px-1 rounded">Approved: @pimjai</span>}
+                    </div>
                  </td>
                  <td className="py-3 px-4 text-sm text-slate-600">{q.quotation_date}</td>
                  <td className="py-3 px-4 text-sm font-mono font-bold text-slate-800 text-right">{(q.grand_total || 0).toLocaleString(undefined, {minimumFractionDigits:2})}</td>

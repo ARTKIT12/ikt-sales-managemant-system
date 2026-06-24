@@ -86,9 +86,15 @@ function renderCustomerRows(customers) {
             <button class="btn btn-outline-primary btn-sm" onclick="editCustomerModal('${cust.id}')" title="แก้ไขข้อมูล">
               <i class="fas fa-edit"></i>
             </button>
-            <button class="btn btn-outline-danger btn-sm" onclick="deleteCustomerConfirm('${cust.id}', '${cust.customer_name.replace(/'/g, "\\'")}')" title="ลบลูกค้า">
-              <i class="fas fa-trash-alt"></i>
-            </button>
+            ${SupabaseDB.isAdmin() ? `
+              <button class="btn btn-outline-danger btn-sm" onclick="deleteCustomerConfirm('${cust.id}', '${cust.customer_name.replace(/'/g, "\\'")}')" title="ลบลูกค้า">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            ` : `
+              <button class="btn btn-outline-secondary btn-sm opacity-50" disabled title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น">
+                <i class="fas fa-lock"></i>
+              </button>
+            `}
           </div>
         </td>
       </tr>
@@ -283,6 +289,10 @@ async function submitCustomerForm() {
 
 // Delete account action
 function deleteCustomerConfirm(id, name) {
+  if (!SupabaseDB.isAdmin()) {
+    showToastAlert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบข้อมูลลูกค้าได้', 'danger');
+    return;
+  }
   Swal.fire({
     title: 'ยืนยันการลบลูกค้า?',
     text: `ประวัติโอกาสการขาย โครงงาน ใบสั่งงาน รวมทั้งรายละเอียดผู้ติดต่อทั้งหมดของบริษัท ${name} จะมีผลกระทบลบออกจากระบบทันที!`,
@@ -438,7 +448,11 @@ async function viewCustomerDetail(id) {
             <td><span class="font-monospace fw-bold text-primary">${quote.quotation_no}</span></td>
             <td>
               <div class="fw-bold text-dark">${quote.project_name || quote.title || 'โครงการบริการจัดทำสัญญา'}</div>
-              <small class="text-muted"><i class="fas fa-user-tie"></i> เจ้าหน้าที่ขาย: ${quote.sales_person || '-'}</small>
+              <div class="text-muted font-monospace mt-0.5" style="font-size: 11px; line-height: 1.3;">
+                <span class="d-block"><i class="fas fa-user-tie text-secondary" style="font-size: 9px;"></i> ผู้ดูแล: ${(window.SupabaseDB && window.SupabaseDB.getUsernameOrDisplayName) ? window.SupabaseDB.getUsernameOrDisplayName(quote.sales_person) : (quote.sales_person || '-')}</span>
+                <span class="d-block"><i class="fa fa-plus-circle text-secondary" style="font-size: 9px;"></i> สร้างโดย: ${quote.created_by ? window.SupabaseDB.getUsernameOrDisplayName(quote.created_by) : '@apiyut'}</span>
+                ${quote.status === 'Approved' ? `<span class="d-block text-success"><i class="fa fa-check-circle" style="font-size: 9px;"></i> อนุมัติโดย: @pimjai</span>` : ''}
+              </div>
             </td>
             <td class="small text-muted font-monospace">${quote.quotation_date || '-'}</td>
             <td class="text-end font-monospace fw-bold text-dark">${qTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>

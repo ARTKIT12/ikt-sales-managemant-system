@@ -91,7 +91,13 @@ function renderOpportunityRows(opportunities) {
           <div class="fw-semibold text-color-indigo font-monospace" style="font-size:0.82rem;">${numFormatter.format(weightedVal)}</div>
         </td>
         <td class="font-monospace small font-bold">${opp.expected_close_date || '-'}</td>
-        <td class="small">${opp.sales_person_id || '-'}</td>
+        <td>
+          <div class="small fw-semibold text-dark" style="font-size: 0.8rem;">${(window.SupabaseDB && window.SupabaseDB.getUsernameOrDisplayName) ? window.SupabaseDB.getUsernameOrDisplayName(opp.sales_person_id) : (opp.sales_person_id || '-')}</div>
+          <div class="text-muted font-monospace mt-0.5" style="font-size: 10px; line-height: 1.2;">
+            <span class="d-block" title="สร้างโดย"><i class="fa fa-plus-circle text-secondary" style="font-size: 9px;"></i> ${opp.created_by ? window.SupabaseDB.getUsernameOrDisplayName(opp.created_by) : '@apiyut'}</span>
+            <span class="d-block" title="แก้ไขโดย"><i class="fa fa-pen text-secondary" style="font-size: 9px;"></i> ${opp.updated_by ? window.SupabaseDB.getUsernameOrDisplayName(opp.updated_by) : '@apiyut'}</span>
+          </div>
+        </td>
         <td>
           <span class="badge-status ${statusClass} d-inline-block text-center" style="min-width: 90px;">${opp.status}</span>
         </td>
@@ -100,7 +106,11 @@ function renderOpportunityRows(opportunities) {
             ${quickActionsHtml}
             <div class="d-flex gap-1 justify-content-center mt-1">
               <button onclick="openOpportunityModal('${opp.id}')" class="btn btn-outline-primary btn-xs" title="แก้ไขเอกสารรายละเอียด"><i class="fa fa-edit"></i></button>
-              <button class="btn btn-outline-danger btn-xs" onclick="deleteOpportunityConfirm('${opp.id}', '${opp.project_name.replace(/'/g, "\\'")}', '${opp.opportunity_no}')" title="ลบเป้าหมายการขาย"><i class="fa fa-trash"></i></button>
+              ${SupabaseDB.isAdmin() ? `
+                <button class="btn btn-outline-danger btn-xs" onclick="deleteOpportunityConfirm('${opp.id}', '${opp.project_name.replace(/'/g, "\\'")}', '${opp.opportunity_no}')" title="ลบเป้าหมายการขาย"><i class="fa fa-trash"></i></button>
+              ` : `
+                <button class="btn btn-outline-secondary btn-xs opacity-50" disabled title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"><i class="fa fa-lock"></i></button>
+              `}
             </div>
           </div>
         </td>
@@ -201,6 +211,10 @@ async function quickChangeOpportunityStatus(id, nextStatus) {
 
 // Delete confirm dialog
 function deleteOpportunityConfirm(id, name, refNo) {
+  if (!SupabaseDB.isAdmin()) {
+    showToastAlert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบโอกาสขายได้', 'danger');
+    return;
+  }
   Swal.fire({
     title: 'ต้องการลบเป้าหมายงานขายนี้?',
     text: `หมายเลขโอกาส ${refNo} (โครงการ: ${name}) จะถูกเพิกถอนข้อมูล และการคาดการณ์ยอดเงินจะหายรายจ่ายวิเคราะห์ออกไป ถาวร!`,

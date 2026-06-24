@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Invoice, Receipt, UserRole } from '../types';
-import { CreditCard, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, FileText, Check, DollarSign, Wallet, Calendar, X } from 'lucide-react';
+import { CreditCard, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, FileText, Check, DollarSign, Wallet, Calendar, X, Lock } from 'lucide-react';
 
 interface ReceiptViewProps {
   receipts: Receipt[];
@@ -39,7 +39,7 @@ export default function ReceiptView({
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
   const canModify = currentRole !== 'Management';
-  const canDelete = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDelete = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   const handleInvoiceChange = (id: string) => {
     setInvoiceId(id);
@@ -258,7 +258,7 @@ export default function ReceiptView({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canDelete && (
+                        {canDelete ? (
                           <button
                             onClick={async () => {
                               if (confirm(`คุณต้องการยกเลิกประวัติใบรับเงินแท็กซี่ฟลอร์นี้หรือไม่ ${rec.receipt_no}?`)) {
@@ -270,6 +270,14 @@ export default function ReceiptView({
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

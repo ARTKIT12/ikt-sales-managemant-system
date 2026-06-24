@@ -893,6 +893,10 @@
             <td>
               <div class="fw-bold">${i.project_name}</div>
               <div class="text-xs text-muted font-monospace">PO Ref: ${i.po_reference || '-'}</div>
+              <div class="text-muted font-monospace mt-0.5" style="font-size: 10px; line-height: 1.2;">
+                <span class="d-inline-block me-2" title="สร้างโดย"><i class="fa fa-plus-circle text-secondary" style="font-size: 9px;"></i> ${i.created_by ? window.SupabaseDB.getUsernameOrDisplayName(i.created_by) : '@apiyut'}</span>
+                <span class="d-inline-block me-2" title="แก้ไขโดย"><i class="fa fa-pen text-secondary" style="font-size: 9px;"></i> ${i.updated_by ? window.SupabaseDB.getUsernameOrDisplayName(i.updated_by) : '@apiyut'}</span>
+              </div>
             </td>
             <td>
               <div class="small fw-semibold text-dark">${i.customer ? i.customer.customer_name : 'ไม่พบชื่อนิติบุคคล'}</div>
@@ -914,9 +918,15 @@
                 <button class="btn btn-outline-primary" title="พิจารณาแก้ไขบิล" onclick="openEditInvoiceModal('${i.id}')">
                   <i class="fa fa-edit"></i>
                 </button>
-                <button class="btn btn-outline-danger" title="ลบบิลเรียกเก็บ" onclick="deleteInvoice('${i.id}')">
-                  <i class="fa fa-trash"></i>
-                </button>
+                ${SupabaseDB.isAdmin() ? `
+                  <button class="btn btn-outline-danger" title="ลบบิลเรียกเก็บ" onclick="deleteInvoice('${i.id}')">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                ` : `
+                  <button class="btn btn-outline-secondary opacity-50" disabled title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น">
+                    <i class="fa fa-lock"></i>
+                  </button>
+                `}
               </div>
             </td>
           </tr>
@@ -1152,6 +1162,10 @@
 
     // Delete Invoice
     async function deleteInvoice(id) {
+      if (!SupabaseDB.isAdmin()) {
+        showToastAlert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบใบกำกับภาษี/อินวอยส์ได้', 'danger');
+        return;
+      }
       const i = await SupabaseDB.getInvoiceById(id);
       if (!i) return;
 

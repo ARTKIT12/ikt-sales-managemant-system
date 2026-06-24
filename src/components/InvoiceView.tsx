@@ -21,7 +21,8 @@ import {
   ChevronRight, 
   DollarSign, 
   Trash, 
-  FileText 
+  FileText,
+  Lock
 } from 'lucide-react';
 
 interface InvoiceViewProps {
@@ -76,7 +77,7 @@ export default function InvoiceView({
   ]);
 
   const canModify = currentRole !== 'Management';
-  const canDelete = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDelete = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   // Calculate stats for AdminLTE 4 widgets
   const stats = useMemo(() => {
@@ -548,7 +549,7 @@ export default function InvoiceView({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canDelete && (
+                        {canDelete ? (
                           <button
                             onClick={async () => {
                               if (confirm(`คลังกระทรวงยืนยันยกเลิกใบเรียกวางบิล ${inv.invoice_no} ใช่หรือไม่?`)) {
@@ -560,6 +561,14 @@ export default function InvoiceView({
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

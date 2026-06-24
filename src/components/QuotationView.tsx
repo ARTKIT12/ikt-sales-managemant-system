@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Opportunity, Quotation, UserRole } from '../types';
-import { FileText, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, Calendar, FileCheck, Check, Ban, Clock, X } from 'lucide-react';
+import { FileText, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, Calendar, FileCheck, Check, Ban, Clock, X, Lock } from 'lucide-react';
 
 interface QuotationViewProps {
   quotations: Quotation[];
@@ -46,7 +46,7 @@ export default function QuotationView({
   const [status, setStatus] = useState<'Draft' | 'Sent' | 'Approved' | 'Rejected' | 'Expired'>('Draft');
 
   const canModify = currentRole !== 'Management';
-  const canDelete = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDelete = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   // Handle Opportunity Selection to auto-fill Customer and Subject
   const handleOppChange = (id: string) => {
@@ -292,7 +292,7 @@ export default function QuotationView({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canDelete && (
+                        {canDelete ? (
                           <button
                             onClick={async () => {
                               if (confirm(`คุณมั่นใจหรือไม่ที่จะถอดถอนและลบใบเสนอราคา ${q.quotation_no} ออกจากพอร์ทัล?`)) {
@@ -304,6 +304,14 @@ export default function QuotationView({
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

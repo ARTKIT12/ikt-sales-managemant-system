@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, SalesOrder, DeliveryJob, UserRole } from '../types';
-import { Truck, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, FileText, Check, Clock, ShieldCheck, MapPin, Navigation, X } from 'lucide-react';
+import { Truck, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, FileText, Check, Clock, ShieldCheck, MapPin, Navigation, X, Lock } from 'lucide-react';
 
 interface DeliveryViewProps {
   deliveryJobs: DeliveryJob[];
@@ -41,7 +41,7 @@ export default function DeliveryView({
   const [status, setStatus] = useState<'Scheduled' | 'In Transit' | 'Delivered' | 'Failed'>('Scheduled');
 
   const canModify = currentRole !== 'Management';
-  const canDelete = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDelete = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   const handleSOChange = (id: string) => {
     setSoId(id);
@@ -274,7 +274,7 @@ export default function DeliveryView({
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canDelete && (
+                        {canDelete ? (
                           <button
                             onClick={async () => {
                               if (confirm(`คุณต้องการยกเลิกแผนตารางถอดถอนผู้ส่งมอบใบนี้ ${job.delivery_no} หรือไม่?`)) {
@@ -286,6 +286,14 @@ export default function DeliveryView({
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

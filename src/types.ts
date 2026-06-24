@@ -1,3 +1,13 @@
+export interface User {
+  id: string;
+  username: string;
+  fullname: string; // aligned with frontend fullname/full_name
+  email: string;
+  role: string;
+  status?: string;
+  created_at?: string;
+}
+
 export interface ContactPerson {
   contact_name: string;
   position: string;

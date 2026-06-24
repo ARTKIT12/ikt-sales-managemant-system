@@ -22,7 +22,8 @@ import {
   FileCheck2,
   FileClock,
   ArrowUpDown,
-  Paperclip
+  Paperclip,
+  Lock
 } from 'lucide-react';
 
 interface OpportunityViewProps {
@@ -79,7 +80,7 @@ export default function OpportunityView({
 }: OpportunityViewProps) {
   
   const canModifyOpportunity = currentRole !== 'Management';
-  const canDeleteOpportunity = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDeleteOpportunity = currentRole === 'Admin' || currentRole === 'System Administrator';
   const isSales = currentRole === 'Sales';
   const canReassignSalesPerson = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
   
@@ -332,7 +333,7 @@ export default function OpportunityView({
   const handleDeleteOpportunity = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!canDeleteOpportunity) {
-      onToast('จำกัดบทบาทระบบ: สิทธิ์ลบแผ่นบันทึกโอกาสขายสงวนไว้สำหรับ Sales Manager หรือผู้ดูแลระบบเท่านั้น', 'err');
+      onToast('จำกัดบทบาทระบบ: สิทธิ์ลบแผ่นบันทึกโอกาสขายสงวนไว้สำหรับผู้ดูแลระบบ (Admin) เท่านั้น', 'err');
       return;
     }
     if (confirm('ยืนยันลบโอกาสทางการขายนี้ออกจากระบบ? รายการสถิติกระดานคัมบังจะยุติลง')) {
@@ -649,13 +650,23 @@ export default function OpportunityView({
                         >
                           <Edit className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          title="ลบดีล"
-                          onClick={(e) => handleDeleteOpportunity(opp.id, e)}
-                          className="p-1 text-slate-500 hover:text-red-700 hover:bg-slate-100 rounded transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canDeleteOpportunity ? (
+                          <button
+                            title="ลบดีล"
+                            onClick={(e) => handleDeleteOpportunity(opp.id, e)}
+                            className="p-1 text-slate-500 hover:text-red-700 hover:bg-slate-100 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

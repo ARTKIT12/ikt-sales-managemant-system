@@ -799,6 +799,9 @@ const SupabaseDB = {
   },
 
   async deleteCustomer(id) {
+    if (!this.isAdmin()) {
+      throw new Error("คุณไม่มีสิทธิ์ลบข้อมูลลูกค้า เฉพาะ Admin เท่านั้น (Admin permission required)");
+    }
     // Delete locally
     const customers = JSON.parse(localStorage.getItem('crm_customers')) || [];
     const filtered = customers.filter(c => c.id !== id);
@@ -873,12 +876,15 @@ const SupabaseDB = {
     const nextCode = `OPP-${yr}${String(seq).padStart(4, '0')}`;
     const newId = crypto.randomUUID();
 
+    const currentUser = this.getCurrentUser();
     const newOpp = {
       ...oppData,
       id: newId,
       opportunity_no: nextCode,
       estimated_value: parseFloat(oppData.estimated_value) || 0,
       success_probability: parseInt(oppData.success_probability) || 0,
+      created_by: currentUser.id,
+      updated_by: currentUser.id,
       created_at: new Date().toISOString()
     };
 
@@ -912,7 +918,8 @@ const SupabaseDB = {
     const opportunities = JSON.parse(localStorage.getItem('crm_opportunities')) || [];
     const idx = opportunities.findIndex(o => o.id === id);
     if (idx !== -1) {
-      const updatedOpp = { ...opportunities[idx], ...updates };
+      const currentUser = this.getCurrentUser();
+      const updatedOpp = { ...opportunities[idx], ...updates, updated_by: currentUser.id };
       
       // sync customer
       const localCustomers = JSON.parse(localStorage.getItem('crm_customers')) || [];
@@ -940,6 +947,9 @@ const SupabaseDB = {
   },
 
   async deleteOpportunity(id) {
+    if (!this.isAdmin()) {
+      throw new Error("คุณไม่มีสิทธิ์ลบข้อมูลโอกาสขาย เฉพาะ Admin เท่านั้น (Admin permission required)");
+    }
     const opportunities = JSON.parse(localStorage.getItem('crm_opportunities')) || [];
     const filtered = opportunities.filter(o => o.id !== id);
     localStorage.setItem('crm_opportunities', JSON.stringify(filtered));
@@ -1010,6 +1020,7 @@ const SupabaseDB = {
     const nextCode = `QT-${String(seq).padStart(4, '0')}-${yr}`;
     const newId = crypto.randomUUID();
 
+    const currentUser = this.getCurrentUser();
     const newQuote = {
       ...quoteData,
       id: newId,
@@ -1017,6 +1028,8 @@ const SupabaseDB = {
       total_value: parseFloat(quoteData.total_value) || 0,
       tax_rate: parseFloat(quoteData.tax_rate) || 7,
       grand_total: parseFloat(quoteData.grand_total) || 0,
+      created_by: currentUser.id,
+      updated_by: currentUser.id,
       created_at: new Date().toISOString()
     };
 
@@ -1060,12 +1073,14 @@ const SupabaseDB = {
         }
       }
 
+      const currentUser = this.getCurrentUser();
       const updatedQuote = { 
         ...quotes[idx], 
         ...updates, 
         quotation_no: currentNo,
         total_value: parseFloat(updates.total_value !== undefined ? updates.total_value : quotes[idx].total_value) || 0,
-        grand_total: parseFloat(updates.grand_total !== undefined ? updates.grand_total : quotes[idx].grand_total) || 0
+        grand_total: parseFloat(updates.grand_total !== undefined ? updates.grand_total : quotes[idx].grand_total) || 0,
+        updated_by: currentUser.id
       };
 
       quotes[idx] = updatedQuote;
@@ -1091,6 +1106,9 @@ const SupabaseDB = {
   },
 
   async deleteQuotation(id) {
+    if (!this.isAdmin()) {
+      throw new Error("คุณไม่มีสิทธิ์ลบข้อมูลใบเสนอราคา เฉพาะ Admin เท่านั้น (Admin permission required)");
+    }
     const quotes = JSON.parse(localStorage.getItem('crm_quotations')) || [];
     const filtered = quotes.filter(q => q.id !== id);
     localStorage.setItem('crm_quotations', JSON.stringify(filtered));
@@ -1160,6 +1178,7 @@ const SupabaseDB = {
     const nextCode = `INV-${yr}${String(seq).padStart(4, '0')}`;
     const newId = crypto.randomUUID();
 
+    const currentUser = this.getCurrentUser();
     const newInv = {
       ...invData,
       id: newId,
@@ -1167,6 +1186,8 @@ const SupabaseDB = {
       total_value: parseFloat(invData.total_value) || 0,
       tax_rate: parseFloat(invData.tax_rate) || 7,
       grand_total: parseFloat(invData.grand_total) || 0,
+      created_by: currentUser.id,
+      updated_by: currentUser.id,
       created_at: new Date().toISOString()
     };
 
@@ -1191,11 +1212,13 @@ const SupabaseDB = {
     const invoices = JSON.parse(localStorage.getItem('crm_invoices')) || [];
     const idx = invoices.findIndex(inv => inv.id === id);
     if (idx !== -1) {
+      const currentUser = this.getCurrentUser();
       const updatedInv = { 
         ...invoices[idx], 
         ...updates,
         total_value: parseFloat(updates.total_value !== undefined ? updates.total_value : invoices[idx].total_value) || 0,
-        grand_total: parseFloat(updates.grand_total !== undefined ? updates.grand_total : invoices[idx].grand_total) || 0
+        grand_total: parseFloat(updates.grand_total !== undefined ? updates.grand_total : invoices[idx].grand_total) || 0,
+        updated_by: currentUser.id
       };
       
       invoices[idx] = updatedInv;
@@ -1218,6 +1241,9 @@ const SupabaseDB = {
   },
 
   async deleteInvoice(id) {
+    if (!this.isAdmin()) {
+      throw new Error("คุณไม่มีสิทธิ์ลบข้อมูลใบแจ้งหนี้ เฉพาะ Admin เท่านั้น (Admin permission required)");
+    }
     const invoices = JSON.parse(localStorage.getItem('crm_invoices')) || [];
     const filtered = invoices.filter(inv => inv.id !== id);
     localStorage.setItem('crm_invoices', JSON.stringify(filtered));
@@ -1228,6 +1254,112 @@ const SupabaseDB = {
         await restRequest(`/invoices?id=eq.${id}`, { method: 'DELETE' });
       } catch (e) {
         console.warn("Cloud deleteInvoice failed, completed locally", e);
+      }
+    }
+    return true;
+  },
+
+  // -----------------------
+  // USERS DB SYSTEM (SUPABASE SYNC)
+  // -----------------------
+  async getUsers() {
+    const isCloud = await this.testConnection();
+    if (isCloud) {
+      try {
+        const rawUsers = await restRequest('/users');
+        if (rawUsers && rawUsers.length > 0) {
+          localStorage.setItem('crm_users_list', JSON.stringify(rawUsers));
+          return rawUsers;
+        }
+      } catch (err) {
+        console.warn("Fetch Cloud Users failed, falling back to local storage", err);
+      }
+    }
+    const local = localStorage.getItem('crm_users_list');
+    if (local) {
+      return JSON.parse(local);
+    }
+    const defaultUsersList = [
+      { id: "d1ef4942-83b3-4f9e-bbb4-7a0df47ab001", username: "apiyut", fullname: "Apiyut (Admin)", email: "Apiyut.noeikhiaw@th.ikm.com", role: "Admin", status: "Active" },
+      { id: "d2ef4942-83b3-4f9e-bbb4-7a0df47ab002", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", email: "pimjai.k@ikm-testing.co.th", role: "Sales Manager", status: "Active" },
+      { id: "d3ef4942-83b3-4f9e-bbb4-7a0df47ab003", username: "wiriya", fullname: "วิริยะ สว่างงาม", email: "wiriya.s@ikm-testing.co.th", role: "Sales Rep", status: "Active" },
+      { id: "d4ef4942-83b3-4f9e-bbb4-7a0df47ab004", username: "somsri", fullname: "สมศรี จิตรประสงค์", email: "somsri.j@ikm-testing.co.th", role: "Auditor", status: "Active" }
+    ];
+    localStorage.setItem('crm_users_list', JSON.stringify(defaultUsersList));
+    return defaultUsersList;
+  },
+
+  async addUser(userData) {
+    const users = await this.getUsers();
+    const newId = userData.id || crypto.randomUUID();
+    const newUser = {
+      ...userData,
+      id: newId,
+      created_at: new Date().toISOString()
+    };
+    users.push(newUser);
+    localStorage.setItem('crm_users_list', JSON.stringify(users));
+
+    const isCloud = await this.testConnection();
+    if (isCloud) {
+      try {
+        const response = await restRequest('/users', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=representation' },
+          body: JSON.stringify(newUser)
+        });
+        return response ? response[0] : newUser;
+      } catch (err) {
+        console.warn("Cloud addUser failed, completed locally", err);
+      }
+    }
+    return newUser;
+  },
+
+  async updateUser(id, updates) {
+    const users = await this.getUsers();
+    const idx = users.findIndex(u => u.id === id);
+    if (idx !== -1) {
+      const updatedUser = { 
+        ...users[idx], 
+        ...updates, 
+        updated_at: new Date().toISOString()
+      };
+      users[idx] = updatedUser;
+      localStorage.setItem('crm_users_list', JSON.stringify(users));
+
+      const isCloud = await this.testConnection();
+      if (isCloud) {
+        try {
+          await restRequest(`/users?id=eq.${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+          });
+        } catch (err) {
+          console.warn("Cloud updateUser failed, completed locally", err);
+        }
+      }
+      return updatedUser;
+    }
+    return null;
+  },
+
+  async deleteUser(id) {
+    if (!this.isAdmin()) {
+      throw new Error("คุณไม่มีสิทธิ์ลบข้อมูลผู้ใช้งาน เฉพาะ Admin เท่านั้น (Admin permission required)");
+    }
+    const users = await this.getUsers();
+    const filtered = users.filter(u => u.id !== id);
+    localStorage.setItem('crm_users_list', JSON.stringify(filtered));
+
+    const isCloud = await this.testConnection();
+    if (isCloud) {
+      try {
+        await restRequest(`/users?id=eq.${id}`, {
+          method: 'DELETE'
+        });
+      } catch (err) {
+        console.warn("Cloud deleteUser failed, completed locally", err);
       }
     }
     return true;
@@ -1254,6 +1386,69 @@ const SupabaseDB = {
     if (activities.length > 50) activities.pop(); // cap at 50 logs of history
     localStorage.setItem('crm_activities', JSON.stringify(activities));
     return newAct;
+  },
+
+  isAdmin() {
+    const user = this.getCurrentUser();
+    const role = (user && user.role) ? user.role.toLowerCase() : '';
+    return role === 'admin' || role === 'system administrator';
+  },
+
+  getCurrentUser() {
+    const storedUsers = localStorage.getItem('crm_users_list');
+    const systemUsers = storedUsers ? JSON.parse(storedUsers) : [
+      { id: "u1", username: "apiyut", fullname: "Apiyut (Admin)", role: "Admin" },
+      { id: "u2", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", role: "Sales Manager" },
+      { id: "u3", username: "wiriya", fullname: "วิริยะ สว่างงาม", role: "Sales Rep" },
+      { id: "u4", username: "somsri", fullname: "สมศรี จิตรประสงค์", role: "Auditor" }
+    ];
+    const cachedRole = localStorage.getItem('crm_user_role') || 'Admin';
+    const found = systemUsers.find(u => u.role === cachedRole) || systemUsers[0];
+    return found;
+  },
+
+  getUsernameOrDisplayName(userIdOrRawString, useFullname = false) {
+    if (!userIdOrRawString) return 'system';
+    const storedUsers = localStorage.getItem('crm_users_list');
+    const systemUsers = storedUsers ? JSON.parse(storedUsers) : [
+      { id: "u1", username: "apiyut", fullname: "Apiyut (Admin)", role: "Admin" },
+      { id: "u2", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", role: "Sales Manager" },
+      { id: "u3", username: "wiriya", fullname: "วิริยะ สว่างงาม", role: "Sales Rep" },
+      { id: "u4", username: "somsri", fullname: "สมศรี จิตรประสงค์", role: "Auditor" }
+    ];
+
+    const cleanVal = String(userIdOrRawString).trim().toLowerCase();
+
+    // 1. Try to match by id
+    let found = systemUsers.find(u => u.id && u.id.toLowerCase() === cleanVal);
+    // 2. Try to match by username
+    if (!found) {
+      found = systemUsers.find(u => u.username && u.username.toLowerCase() === cleanVal);
+    }
+    // 3. Try to match by substring of fullname
+    if (!found) {
+      found = systemUsers.find(u => {
+        if (!u.fullname) return false;
+        const fn = u.fullname.toLowerCase();
+        return fn.includes(cleanVal) || cleanVal.includes(fn);
+      });
+    }
+    // 4. Try mapping S01, S02, S03 codes
+    if (!found) {
+      if (cleanVal.includes("เอกชัย") || cleanVal.includes("s01") || cleanVal.includes("s1")) {
+        found = systemUsers.find(u => u.username === "wiriya");
+      } else if (cleanVal.includes("สุชาดา") || cleanVal.includes("s02") || cleanVal.includes("s2")) {
+        found = systemUsers.find(u => u.username === "pimjai");
+      } else if (cleanVal.includes("ธนพล") || cleanVal.includes("s03") || cleanVal.includes("s3")) {
+        found = systemUsers.find(u => u.username === "apiyut");
+      }
+    }
+
+    if (found) {
+      return useFullname ? found.fullname : `@${found.username}`;
+    }
+
+    return userIdOrRawString.startsWith('u') ? `@${userIdOrRawString}` : userIdOrRawString;
   }
 };
 

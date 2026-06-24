@@ -27,7 +27,8 @@ import {
   Calendar,
   History,
   Paperclip,
-  CheckSquare
+  CheckSquare,
+  Lock
 } from 'lucide-react';
 
 interface CustomerViewProps {
@@ -75,7 +76,7 @@ export default function CustomerView({
   currentUserId = '3'
 }: CustomerViewProps) {
   const canModifyCustomer = currentRole !== 'Management';
-  const canDeleteCustomer = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDeleteCustomer = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   // Lists and Search
   const [searchTerm, setSearchTerm] = useState('');
@@ -286,7 +287,7 @@ export default function CustomerView({
   const handleDeleteCustomer = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!canDeleteCustomer) {
-      onToast('ปฏิเสธการดำเนินการ: คุณจำเป็นต้องได้รับบทบาท Sales Manager หรือแอดมิน เพื่อสามารถลบรายชื่อบริษัทลูกค้าองค์กรได้', 'err');
+      onToast('ปฏิเสธการดำเนินการ: คุณจำเป็นต้องได้รับบทบาทผู้ดูแลระบบ (Admin) เพื่อลบรายชื่อบริษัทลูกค้าองค์กรได้', 'err');
       return;
     }
     if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลลูกค้ารายนี้? สัญญา/ดีลทั้งหมดของลูกค้ารายนี้จะถูกลบไปด้วย')) {
@@ -536,13 +537,23 @@ export default function CustomerView({
                         >
                           <Edit className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          title="ลบลูกค้า"
-                          onClick={(e) => handleDeleteCustomer(customer.id, e)}
-                          className="p-1 text-slate-500 hover:text-red-700 hover:bg-slate-100 rounded transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {canDeleteCustomer ? (
+                          <button
+                            title="ลบลูกค้า"
+                            onClick={(e) => handleDeleteCustomer(customer.id, e)}
+                            className="p-1 text-slate-500 hover:text-red-700 hover:bg-slate-100 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -142,6 +142,10 @@
           <div class="modal-body">
             <input type="hidden" id="user-id">
             <div class="mb-3">
+              <label class="form-label text-dark fw-bold">ชื่อผู้ใช้งาน (Username):</label>
+              <input type="text" class="form-control font-monospace text-indigo" id="user-username" required placeholder="เช่น apiyut, pimjai" style="font-weight: 600;">
+            </div>
+            <div class="mb-3">
               <label class="form-label text-dark fw-bold">ชื่อ-นามสกุล:</label>
               <input type="text" class="form-control" id="user-fullname" required placeholder="เช่น ดลภัทร รักษ์สุข">
             </div>
@@ -185,23 +189,17 @@
 
   <script>
     let defaultUsers = [
-      { id: "u1", fullname: "Apiyut (Admin)", role: "Admin", email: "Apiyut.noeikhiaw@th.ikm.com", status: "Active" },
-      { id: "u2", fullname: "พิมพ์ใจ กิตติคุณ", role: "Sales Manager", email: "pimjai.k@ikm-testing.co.th", status: "Active" },
-      { id: "u3", fullname: "วิริยะ สว่างงาม", role: "Sales Rep", email: "wiriya.s@ikm-testing.co.th", status: "Active" },
-      { id: "u4", fullname: "สมศรี จิตรประสงค์", role: "Auditor", email: "somsri.j@ikm-testing.co.th", status: "Active" }
+      { id: "u1", username: "apiyut", fullname: "Apiyut (Admin)", role: "Admin", email: "Apiyut.noeikhiaw@th.ikm.com", status: "Active" },
+      { id: "u2", username: "pimjai", fullname: "พิมพ์ใจ กิตติคุณ", role: "Sales Manager", email: "pimjai.k@ikm-testing.co.th", status: "Active" },
+      { id: "u3", username: "wiriya", fullname: "วิริยะ สว่างงาม", role: "Sales Rep", email: "wiriya.s@ikm-testing.co.th", status: "Active" },
+      { id: "u4", username: "somsri", fullname: "สมศรี จิตรประสงค์", role: "Auditor", email: "somsri.j@ikm-testing.co.th", status: "Active" }
     ];
 
     let usersCached = [];
 
-    document.addEventListener('DOMContentLoaded', () => {
-      const stored = localStorage.getItem('crm_users_list');
-      if (stored) {
-        usersCached = JSON.parse(stored);
-      } else {
-        usersCached = defaultUsers;
-        localStorage.setItem('crm_users_list', JSON.stringify(usersCached));
-      }
-
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Load users from Supabase or localStorage fallback
+      usersCached = await SupabaseDB.getUsers();
       renderUsers();
       onMatrixRoleSelectChange();
     });
@@ -223,7 +221,10 @@
                 <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(usr.fullname)}&background=6610f2&color=fff" class="rounded-circle" style="width: 32px; height: 32px;">
                 <div>
                   <div class="fw-bold text-dark">${usr.fullname}</div>
-                  <small class="text-muted">ID: ${usr.id}</small>
+                  <div class="small text-muted d-flex gap-2">
+                    <span>ID: ${usr.id}</span>
+                    <span class="badge bg-indigo-subtle text-indigo font-monospace" style="font-size: 10px; padding: 1px 4px; border: 1px solid rgba(102,16,242,0.15)">@${usr.username || usr.id}</span>
+                  </div>
                 </div>
               </div>
             </td>
@@ -233,7 +234,11 @@
             <td class="text-center">
               <div class="d-flex gap-1 justify-content-center">
                 <button class="btn btn-sm btn-outline-primary py-0.5 px-2" onclick="editUser('${usr.id}')">แก้ไข</button>
-                <button class="btn btn-sm btn-outline-danger py-0.5 px-2" onclick="deleteUser('${usr.id}')">ลบ</button>
+                ${SupabaseDB.isAdmin() ? `
+                  <button class="btn btn-sm btn-outline-danger py-0.5 px-2" onclick="deleteUser('${usr.id}')">ลบ</button>
+                ` : `
+                  <button class="btn btn-sm btn-outline-secondary py-0.5 px-2 opacity-50" disabled title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"><i class="fa fa-lock"></i></button>
+                `}
               </div>
             </td>
           </tr>
@@ -244,6 +249,7 @@
     // Modal triggers
     function openAddUserModal() {
       document.getElementById('user-id').value = '';
+      document.getElementById('user-username').value = '';
       document.getElementById('user-fullname').value = '';
       document.getElementById('user-role').value = 'Sales Rep';
       document.getElementById('user-email').value = '';
@@ -259,6 +265,7 @@
       if (!usr) return;
 
       document.getElementById('user-id').value = usr.id;
+      document.getElementById('user-username').value = usr.username || '';
       document.getElementById('user-fullname').value = usr.fullname;
       document.getElementById('user-role').value = usr.role;
       document.getElementById('user-email').value = usr.email;
@@ -270,6 +277,10 @@
     }
 
     function deleteUser(id) {
+      if (!SupabaseDB.isAdmin()) {
+        showToastAlert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบผู้ใช้งานได้', 'danger');
+        return;
+      }
       Swal.fire({
         title: 'ยืนยันเพื่อลบผู้ใช้งาน?',
         text: 'ประวัติพนักงานและสิทธิ์ของพนักงานรายนี้จะถูกนำออกจากระบบถาวร!',
@@ -278,44 +289,52 @@
         confirmButtonColor: '#dc3545',
         confirmButtonText: 'ลบข้อมูล',
         cancelButtonText: 'ยกเลิก'
-      }).then((res) => {
+      }).then(async (res) => {
         if (res.isConfirmed) {
-          usersCached = usersCached.filter(u => u.id !== id);
-          localStorage.setItem('crm_users_list', JSON.stringify(usersCached));
-          showToastAlert('นำข้อมูลผู้ใช้งานออกจากระบบเรียบร้อย', 'success');
-          renderUsers();
+          try {
+            await SupabaseDB.deleteUser(id);
+            usersCached = await SupabaseDB.getUsers();
+            showToastAlert('นำข้อมูลผู้ใช้งานออกจากระบบเรียบร้อย', 'success');
+            renderUsers();
+          } catch (err) {
+            console.error(err);
+            showToastAlert('เกิดข้อผิดพลาดในการลบผู้ใช้งาน', 'danger');
+          }
         }
       });
     }
 
-    function onUserFormSubmit(e) {
+    async function onUserFormSubmit(e) {
       e.preventDefault();
       const id = document.getElementById('user-id').value;
+      const username = document.getElementById('user-username').value.trim().toLowerCase();
       const fullname = document.getElementById('user-fullname').value;
       const role = document.getElementById('user-role').value;
       const email = document.getElementById('user-email').value;
       const status = document.getElementById('user-status').value;
 
-      if (id) {
-        // Edit
-        const idx = usersCached.findIndex(u => u.id === id);
-        if (idx !== -1) {
-          usersCached[idx] = { id, fullname, role, email, status };
+      try {
+        if (id) {
+          // Edit
+          await SupabaseDB.updateUser(id, { username, fullname, role, email, status });
+        } else {
+          // Add
+          const newId = crypto.randomUUID();
+          await SupabaseDB.addUser({ id: newId, username, fullname, role, email, status });
         }
-      } else {
-        // Add
-        const newId = 'u' + Math.floor(Math.random() * 900 + 100);
-        usersCached.push({ id: newId, fullname, role, email, status });
+
+        usersCached = await SupabaseDB.getUsers();
+
+        const mElement = document.getElementById('userModal');
+        const modal = bootstrap.Modal.getInstance(mElement);
+        modal.hide();
+
+        showToastAlert('บันทึกข้อมูลพนักงานสำเร็จแล้ว', 'success');
+        renderUsers();
+      } catch (err) {
+        console.error(err);
+        showToastAlert('ไม่สามารถบันทึกข้อมูลพนักงานได้', 'danger');
       }
-
-      localStorage.setItem('crm_users_list', JSON.stringify(usersCached));
-      
-      const mElement = document.getElementById('userModal');
-      const modal = bootstrap.Modal.getInstance(mElement);
-      modal.hide();
-
-      showToastAlert('บันทึกข้อมูลพนักงานสำเร็จแล้ว', 'success');
-      renderUsers();
     }
 
     // Permission Matrix actions

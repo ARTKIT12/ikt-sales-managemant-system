@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Quotation, SalesOrder, UserRole, Opportunity, Invoice } from '../types';
-import { Briefcase, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, FileText, Check, Calendar, Settings2, ShieldAlert, X } from 'lucide-react';
+import { Briefcase, Plus, Search, Filter, Trash2, Eye, Printer, Edit2, FileText, Check, Calendar, Settings2, ShieldAlert, X, Lock } from 'lucide-react';
 
 interface SalesOrderViewProps {
   salesOrders: SalesOrder[];
@@ -51,7 +51,7 @@ export default function SalesOrderView({
   const [poNo, setPoNo] = useState('');
 
   const canModify = currentRole !== 'Management';
-  const canDelete = currentRole === 'Sales Manager' || currentRole === 'Admin' || currentRole === 'System Administrator';
+  const canDelete = currentRole === 'Admin' || currentRole === 'System Administrator';
 
   // Extract only Approved/Sent quotations to create Sales Orders
   const validQuotations = useMemo(() => {
@@ -421,7 +421,7 @@ export default function SalesOrderView({
                             <Settings2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        {canDelete && (
+                        {canDelete ? (
                           <button
                             onClick={async () => {
                               if (confirm(`คุณแน่ใจว่าต้องการยกเลิกและลบประวัติใบสั่งขาย ${so.so_no} หรือไม่?`)) {
@@ -433,6 +433,14 @@ export default function SalesOrderView({
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                            className="p-1 text-slate-300 cursor-not-allowed rounded"
+                          >
+                            <Lock className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

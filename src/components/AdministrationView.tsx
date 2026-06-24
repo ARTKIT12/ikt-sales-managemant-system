@@ -166,6 +166,11 @@ export default function AdministrationView({
   };
 
   const handleDeleteUser = (id: string, name: string) => {
+    const hasPermission = currentRole === 'Admin' || currentRole === 'System Administrator';
+    if (!hasPermission) {
+      onToast('ขออภัย เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบผู้ใช้งานได้', 'err');
+      return;
+    }
     if (id === currentUserId) {
       onToast('ไม่สามารถลบผู้ที่คุณกำลังล็อกอินสลับใช้ในขณะนี้ได้', 'err');
       return;
@@ -380,13 +385,23 @@ export default function AdministrationView({
                             >
                               <Edit className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleDeleteUser(u.id, u.name)}
-                              title="ลบพนักงาน"
-                              className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {currentRole === 'Admin' || currentRole === 'System Administrator' ? (
+                              <button
+                                onClick={() => handleDeleteUser(u.id, u.name)}
+                                title="ลบพนักงาน"
+                                className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                disabled
+                                title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น"
+                                className="p-1.5 text-slate-300 cursor-not-allowed rounded"
+                              >
+                                <Lock className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

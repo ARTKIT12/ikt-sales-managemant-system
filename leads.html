@@ -401,9 +401,15 @@
                 <button class="btn btn-outline-primary" title="แก้ไขสิทธิ์" onclick="openEditLeadModal('${l.id}')">
                   <i class="fa fa-edit"></i>
                 </button>
-                <button class="btn btn-outline-danger" title="ลบเป้าหมาย" onclick="deleteLead('${l.id}')">
-                  <i class="fa fa-trash"></i>
-                </button>
+                ${SupabaseDB.isAdmin() ? `
+                  <button class="btn btn-outline-danger" title="ลบเป้าหมาย" onclick="deleteLead('${l.id}')">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                ` : `
+                  <button class="btn btn-outline-secondary opacity-50" disabled title="จำกัดสิทธิ์เฉพาะ Admin เท่านั้น">
+                    <i class="fa fa-lock"></i>
+                  </button>
+                `}
                 ${l.status !== 'Converted' ? `
                   <button class="btn btn-success" title="สลับเป็นลูกค้านิติจริง" onclick="convertLeadToCustomer('${l.id}')">
                     <i class="fa fa-check-circle me-1"></i> Convert
@@ -491,6 +497,10 @@
     }
 
     function deleteLead(id) {
+      if (!SupabaseDB.isAdmin()) {
+        showToastAlert('เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบข้อมูลผู้สนใจได้', 'danger');
+        return;
+      }
       const idx = activeLeads.findIndex(item => item.id === id);
       if (idx === -1) return;
 
