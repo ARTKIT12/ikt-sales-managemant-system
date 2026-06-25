@@ -2337,7 +2337,7 @@ export const CRMService = {
     return LocalDB.getAuditLogs().sort((a, b) => b.created_at.localeCompare(a.created_at));
   },
 
-  async insertAuditLog(log: Omit<AuditLog, 'id' | 'created_at'>): Promise<AuditLog> {
+  async insertAuditLog(log: Omit<AuditLog, 'id' | 'created_at'>, userId: string = 'unknown'): Promise<AuditLog> {
     const all = LocalDB.getAuditLogs();
     const newLog: AuditLog = {
       ...log,
@@ -2345,6 +2345,23 @@ export const CRMService = {
       created_at: new Date().toISOString()
     };
     LocalDB.saveAuditLogs([newLog, ...all]);
+
+    try {
+      await fetch('/api/audit_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          action: log.action,
+          targetType: log.target_type,
+          targetId: log.target_id,
+          details: log.details
+        })
+      });
+    } catch (err) {
+      console.error('Failed to log audit action via API', err);
+    }
+    
     return newLog;
   },
 

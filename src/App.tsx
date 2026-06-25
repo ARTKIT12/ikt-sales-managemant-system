@@ -59,7 +59,14 @@ export default function App() {
     return (localStorage.getItem('crm_active_role') as UserRole) || 'System Administrator';
   });
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem('crm_user_id') || localStorage.getItem('crm_active_user_id') || '3'; // '3' is Tanapol (System Administrator)
+    const id = localStorage.getItem('crm_user_id') || localStorage.getItem('crm_active_user_id') || '3';
+    if (id === 'u-fallback') {
+       const newId = '657229df-fb36-4978-bf94-4a52e04f7ae0';
+       localStorage.setItem('crm_user_id', newId);
+       localStorage.setItem('crm_active_user_id', newId);
+       return newId;
+    }
+    return id;
   });
 
   const handleUpdateSession = (userId: string, role: UserRole) => {
@@ -92,6 +99,7 @@ export default function App() {
   // Connection and Toast notification
   const [isCloudConnected, setIsCloudConnected] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'err' } | null>(null);
+  const [currentUserFullname] = useState(() => localStorage.getItem('crm_user_fullname') || 'ผู้ใช้งาน');
 
   // Dark Mode toggles
   const [darkMode, setDarkMode] = useState(false);
@@ -149,16 +157,29 @@ export default function App() {
   // --- Audit Trail Logging proxy ---
   const logSystemAction = async (action: string, target_type: 'customer' | 'opportunity' | 'contact' | 'task' | 'attachment' | 'system', target_id: string, details: string) => {
     try {
-      const simUsers = JSON.parse(localStorage.getItem('crm_sim_users') || '[]');
-      const defaultActor = simUsers.find((u: any) => u.id === currentUserId) || { name: 'ผู้ดูแลระบบ ดลภัทร (Admin)', email: 'admin@crm.com' };
+      const payload = {
+        userId: currentUserId,
+        action,
+        targetType: target_type,
+        targetId: target_id,
+        details
+      };
+      
+      await fetch('/api/audit_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      // Keep existing local logic as well if needed
       await CRMService.insertAuditLog({
-        action_by: `${defaultActor.name} (${defaultActor.email})`,
+        action_by: localStorage.getItem('crm_user_fullname') || 'Unknown',
         role: currentRole,
         action,
         target_type,
         target_id,
         details
-      });
+      }, currentUserId);
     } catch (err) {
       console.warn('Failed inserting audit trail:', err);
     }
@@ -892,6 +913,7 @@ export default function App() {
               <DashboardView 
                 customers={customers} 
                 opportunities={opportunities} 
+                currentUserFullname={currentUserFullname}
                 onNavigate={(tab) => {
                   if (tab === 'opportunities') {
                     setActiveTab('opportunities');

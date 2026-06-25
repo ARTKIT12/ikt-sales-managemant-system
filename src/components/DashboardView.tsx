@@ -28,10 +28,11 @@ import {
 interface DashboardViewProps {
   customers: Customer[];
   opportunities: Opportunity[];
+  currentUserFullname: string;
   onNavigate: (tab: string) => void;
 }
 
-export default function DashboardView({ customers, opportunities, onNavigate }: DashboardViewProps) {
+export default function DashboardView({ customers, opportunities, currentUserFullname, onNavigate }: DashboardViewProps) {
   // 1. Calculations for KPIs
   const kpis = useMemo(() => {
     const totalEstValue = opportunities.reduce((sum, opp) => {
@@ -144,7 +145,7 @@ export default function DashboardView({ customers, opportunities, onNavigate }: 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">ภาพรวมแดชบอร์ดฝ่ายขาย</h2>
-          <p className="text-slate-500 text-sm mt-1">วิเคราะห์ข้อมูลความคืบหน้าโอกาสทางการขายและสถานะการทำงานในเฟสที่ 1</p>
+          <p className="text-slate-500 text-sm mt-1">ยินดีต้อนรับคุณ {currentUserFullname} | วิเคราะห์ข้อมูลความคืบหน้าโอกาสทางการขายและสถานะการทำงานในเฟสที่ 1</p>
         </div>
         <div className="flex gap-2">
           <button 

@@ -1442,7 +1442,15 @@ const SupabaseDB = {
       };
     }
 
-    // 4. Fallback to role match in systemUsers
+    // 4. Fallback: if we have user info in localStorage, use it. Otherwise, fallback to role match.
+    if (currentUserId) {
+        return {
+            id: currentUserId,
+            username: currentFullname?.toLowerCase().replace(/\s+/g, '') || 'user',
+            fullname: currentFullname || 'Unknown User',
+            role: currentRole
+        };
+    }
     const found = systemUsers.find(u => u.role === currentRole) || systemUsers[0];
     return found;
   },
