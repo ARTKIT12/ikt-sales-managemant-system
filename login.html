@@ -510,7 +510,7 @@
           localStorage.setItem('crm_user_role', userRole);
           localStorage.setItem('crm_user_fullname', fullName);
           localStorage.setItem('crm_user_email', email);
-          localStorage.setItem('crm_user_id', authResult && authResult.user ? authResult.user.id : (foundUser ? foundUser.id : 'u-fallback'));
+          localStorage.setItem('crm_user_id', authResult && authResult.user ? authResult.user.id : 'u-fallback');
 
           if (authResult && authResult.session) {
             localStorage.setItem('supabase_session_token', authResult.session.access_token);

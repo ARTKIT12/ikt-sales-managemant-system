@@ -160,26 +160,6 @@ export default function OpportunityView({
   const allSalesPersons = useMemo(() => {
     const base = [...SAMPLE_SALES_PERSONS];
     try {
-      const realUsers = localStorage.getItem('crm_users_list');
-      if (realUsers) {
-        const parsed = JSON.parse(realUsers);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((user: any) => {
-            if (!base.some(b => b.id === user.id)) {
-              base.push({
-                id: user.id,
-                name: user.fullname || user.name || user.username,
-                role: user.role,
-                email: user.email || ''
-              });
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    try {
       const cached = localStorage.getItem('crm_sim_users');
       if (cached) {
         const parsed = JSON.parse(cached);
